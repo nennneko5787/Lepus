@@ -186,21 +186,29 @@ entries:
       **OBSERVED FIXED, on 1.21.11, on BOTH loaders, with a real trophy placed in a world.** The
       halo draws with its transparent pixels showing - on Fabric through
       `BlockRenderLayerMap.putBlock`, and on NeoForge through a mixin that took two attempts to get
-      past a client. That is the only claim here backed by a frame, and it is why the field is
-      `partial` rather than `ok` - `ok` would also be a claim about the three cases below, and it
-      is not a claim about any of them.
+      past a client - **and on 26.2, where this mod installs NOTHING, because there the layer
+      already follows the pixels and lands on CUTOUT by itself.** That is the only claim here backed
+      by a frame, and it is why the field is `partial` rather than `ok` - `ok` would also be a
+      claim about the three cases below, and it is not a claim about any of them.
 
       NOT FIXED, and each is a way this claim would be wrong:
 
       - **a client connected to a dedicated server.** Binding runs from `onServerStarting`, so
         the client computes an EMPTY layer set and draws every transparent block on SOLID. The
         same gap `WorldActivation.known()` records; SC-270 handshake closes it.
-      - **26.2 takes the layer from the PIXELS, not from the declaration.** `FaceBakery` passes
-        the quad own UV rectangle to `SpriteContents.computeTransparency`, which scans the
-        sprite alpha inside it, and `ChunkSectionLayer.byTransparency` maps transparent pixels to
-        CUTOUT. An `alpha_test` block there is PREDICTED to be correct already, and what 26.2
-        gets WRONG is the reverse: a block declaring `opaque` whose texture contains alpha is
-        drawn on CUTOUT anyway. UNOBSERVED - no report about this halo has come from a 26.2 client.
+      - **26.2 takes the layer from the PIXELS, not from the declaration - OBSERVED, AND IT
+        IS VANILLA BEHAVIOUR RATHER THAN OURS.** There is no `ItemBlockRenderTypes` on 26.2
+        and no `TYPE_BY_BLOCK` to write; `FaceBakery` passes the quad own UV rectangle to
+        `SpriteContents.computeTransparency`, which scans the sprite alpha inside it, and
+        `ChunkSectionLayer.byTransparency` maps transparent pixels to CUTOUT. A trophy placed
+        on a 26.2 client draws its halo correctly **with this mod installing nothing there at
+        all** - both loaders ship an empty class on that version. So the halo working is
+        evidence about the ENGINE, and it retroactively confirms the diagnosis: the two versions
+        really do differ, and the 1.21.11 defect was specific rather than universal. Fabric API
+        dropping `BlockRenderLayerMap` for 26.2 is therefore sound - there is no longer a
+        producer side for it to call. What 26.2 still gets WRONG is the reverse and is
+        UNOBSERVED: a block declaring `opaque` whose texture contains alpha is drawn on CUTOUT
+        anyway, because nothing consults the declaration.
       - **`alpha_test_single_sided` and `double_sided` are folded** into CUTOUT and SOLID.
         1.21.11 has three chunk layers and both methods ask for a fourth. The IR names them
         before folding so the divergence is here rather than lost at parse time.
