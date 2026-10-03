@@ -219,6 +219,21 @@ confounded; it no longer does.
 `TODO(SC-180)`: the same question is open for `poly_mesh` and for locator rotations, neither of which
 is drawn yet.
 
+**The order the three angles compose in is a separate question from the sense, and it is still
+unobserved.** The build composes Z, then Y, then X, matching the order Java's own entity models use
+— the format was Java's before it was Bedrock's — and that is an inference from a shared ancestry,
+not a measurement. A bone turning about one axis is right whatever the order, so a rig made of
+single-axis joints cannot testify about it at all; only a bone turning about two or three at once can,
+and the first corpus rig to do so is the piggybacking character whose head the pack aims at
+`[0, -25, 5]` and whose left arm it throws to `[87.5, -85, -47.5]`.
+
+**All six orders were computed over that rig, and the order is not why her face is wrong.** Every one
+of them leaves the head turned away from the camera, the extents moving by under half a block
+between the best and worst. So the question stays open and the answer is not among the six as far as
+that symptom is concerned — which is worth having written down, because "the rotation order must be
+wrong" is the obvious next guess and it is a dead end. It is still a live question for any bone that
+turns about two axes and whose *shape* rather than its *facing* is in dispute.
+
 ### 3.4.2 An attachable is posed in player space, in every view
 
 **A Bedrock attachable's geometry is authored against the player's skeleton, not against the item.**
@@ -249,6 +264,35 @@ had to come out.** The premise was wrong: the two views are not the same space.
 | origin | the eye, so Bedrock's y 0 is the player's own **eye height** below it — read per frame, since a crouching player's eye drops |
 | axes | `diag(-1, +1, +1) / 16`, Bedrock units to camera units |
 | rotation | **none**. Camera space is left as it is |
+| scale | **nothing from the third-person pass**, and one number written out by hand — see below |
+
+**The scale is the one row with no measurement behind it.** First person is not the player's space,
+so nothing in its pass supplies a scale, and the implementation multiplies by the 0.9375 a player
+model carries — the value `AvatarRenderer` applies before any layer runs, and which a third-person
+attachable therefore inherits for free. It is transcribed rather than inherited, and the reason
+recorded beside it is that the model was "6.7% larger than the same model on the same player seen
+from outside". **That reason is the premise the paragraph above refutes**: first person is not the
+third-person space, so its size is not obliged to be the third-person size either. A constant that
+outlived the diagnosis of the thing it was correcting is a known failure here — a mirror on the wrong
+axis did it once, and had to be undone by hand (§3.4.1). **Until a frame says otherwise, treat 0.9375
+as unsubstantiated rather than as measured, and do not build on it.**
+
+**Two captures of a first-person attachable, and how to read them.** Paired screenshots are the
+instrument for this entry, and they are only comparable under stated conditions, because of the row
+above that says the model rides the camera:
+
+- **pitch must match.** The model is fixed to the screen, so a capture taken looking further down
+  puts it higher on the screen for no reason in the model. Two captures whose horizon sits at
+  different fractions of the frame are not a pair, and a vertical difference read off them measures
+  the mouse, not the renderer.
+- **the hand must match**, or the difference is the other arm. An item in the off hand leaves the
+  main hand's arm on screen where a main-hand capture would have the item.
+
+With those held equal, the offline survey is good enough to aim by. On a 1360×768 frame, that
+build's own numbers — the head at `x -1.42 .. -0.16` blocks in camera space, a vertical FOV of 70°
+and an aspect of 1.77 — predict the head centre at 20% of screen width, and the capture puts it at
+20%. **The instrument is good to about 1.5%, which is what makes a number from it worth acting on
+and a number from a silhouette not.**
 
 `query.target_*_rotation` answers **zero** in this view for the same reason: a bone that aims itself
 at the gaze would swing inside a model that is already following it, and Bedrock's first-person
@@ -517,6 +561,29 @@ with **Molang-valued** keyframes, `lerp_mode` (`linear`, `catmullrom`), `pre`/`p
 
 Java has nothing comparable for entities. Sections to write: the sampler, the effect timeline, and
 how `anim_time_update` interacts with a variable frame rate.
+
+**Two things an animation is sampled against are placeholders, and comparing two clients without
+knowing it will mislead you.** Both live in one class's docstring today, which is the wrong place for
+them, because they decide whether a screenshot pair is evidence:
+
+| | is | should be |
+|---|---|---|
+| the clock | `System.nanoTime()` since the client started — a **wall clock** | the game's own tick counter |
+| the world context | **empty**: every query answers zero | the queries SC-130 §5 lists, bound to the holder |
+
+The wall clock keeps running while the game is paused and is not the same number on two clients, so
+**two screenshots of the same looping animation taken seconds apart are not a pair** — the poses
+differ for a reason that is not the renderer. The empty context is the same trap with a longer fuse:
+a pack that places a model by `query.anim_time` or `query.life_time` puts it at `t = 0` forever here,
+while the Bedrock client animates it, and the result reads as a placement bug in a pack that never
+wrote one. Answering zero is a defensible still frame rather than a wrong moving one, and it is
+recorded as such — but it is a **behaviour**, and it belongs in this section where a comparison can
+see it.
+
+**So the rule for a screenshot pair is three conditions, not one.** Same animation phase (the clock),
+same camera pitch and hand (§3.4.2), and a pack whose placement does not depend on a world query. A
+pair missing any of the three is not evidence, and the most common way to lose one is to take both
+shots a few seconds apart without noticing that the animation is a loop.
 
 ### 4.1 Two animations naming one bone: the components add
 
@@ -876,25 +943,42 @@ cube-less `root`, `waist` and `body` bones.
 | view | a bone both name |
 |---|---|
 | third person | **composes** — the pack's pose stands, the wearer's transform goes outside it |
-| first person | **replaces** — the wearer's stands, the pack's pose of that bone is discarded |
+| first person | **DISPUTED — this document says *replaces*, the build composes.** See below |
 
 Third person composing is what makes a halo work: the ring hangs off a `head` the wearer turns, and
 the pack is free to pose it as well.
 
-First person replacing is newer and was arrived at the hard way. This section said *compose* in both
-views, on one piece of evidence: a character's first-person animation moves the cube-less `body` she
-hangs off by `[0, -1, -6]`, and that third of a block forward was read as what carries her head in
-front of the first-person camera rather than behind it. **A Bedrock capture shows her head is not in
-front of the camera.** The evidence was a claim about a frame nobody had looked at, and the frame
-says the opposite — with that translation composed in, the client draws a wall of her clothing at
-point-blank range where Bedrock draws her riding on the player's back.
+**The first-person row contradicts the build, and so does this document.** §4.2.1 below describes the
+opposite behaviour in the same words — "the corpus's `body [0,-1,-6]` still pushes forward underneath
+it" — so the two sections of this file disagree with each other as well as with the code. Whoever
+resolves this, resolve it in both places at once.
 
-Two independent checks agree, and both were made before the change went near a screen:
+As committed, `AttachablePoser` composes in **both** views: the wearer's transform is merged into the pack's as
+`pack × wearer`, per bone, with the pack's translation outermost. There is no replacement path in the
+render code at all — the only `replace` in the tree is the attachment snapshot swap and a docstring.
+So a pack that writes `position [0, -1, -6]` onto a cube-less `body` **does** move the whole
+character 0.375 blocks toward the camera in first person, and the survey says so: the corpus's
+body-parented character comes out at `z -1.59 .. -0.53` blocks, in front of the eye.
 
-- Suppressing the animation entirely — a probe, by answering `c.is_first_person` zero — moved the
-  frame **towards** the Bedrock client. Replacing reproduces that without lying about the query.
-- The survey then puts her first-person extents exactly on her third-person ones, and leaves the
-  other character of the same pack **byte-identical**, as a pack that poses no wearer bone must be.
+**Both positions are argued from the same data point and they contradict each other.**
+
+| | argues |
+|---|---|
+| this section, as written | a Bedrock capture shows her head is **not** in front of the camera, so the pack's pose of `body` must be discarded in this view |
+| `AttachablePoser`'s own docstring | that same `[0, -1, -6]` is **what carries her head in front of the camera instead of behind it**, and replacing it "left the head entirely behind the near plane, which on screen is a character with no head at all" |
+
+Both cannot be right, and the section's evidence is of the kind this project has been burned by
+repeatedly — *a claim about a frame*, with the frame itself unexamined, arguing for a 0.375-block
+placement. **The build's current behaviour is a third thing, chosen for the reason in its docstring
+and never checked against a Bedrock first-person frame of this character.** Under the constitution
+this paragraph is normative and the build is therefore non-conformant; but conformant to a claim
+whose evidence is an unexamined frame would be worse than the present state, and quietly deleting
+the row would leave the next reader with no way to know the question is open.
+
+**So it stays open, and it is worth 0.375 blocks in one view.** What settles it is one frame: the
+same character, same hand, pitch matched (§3.4.2), in both clients, and the answer is whether her
+head is nearer the camera here than the offline survey puts it. A survey number cannot settle it —
+the survey runs this build.
 
 **"The wearer drives them" is about which bones EXIST for the wearer to drive.** Who wins them is
 this table, and it is passed per call site rather than decided inside the poser, because the two

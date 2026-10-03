@@ -33,6 +33,7 @@ import net.nennneko5787.lepus.core.format.json.Json;
 import net.nennneko5787.lepus.core.format.pack.AddonLoader;
 import net.nennneko5787.lepus.core.format.pack.LoadedAddon;
 import net.nennneko5787.lepus.core.format.render.AnimationSampler;
+import net.nennneko5787.lepus.core.format.render.AttachableSpace;
 import net.nennneko5787.lepus.core.format.render.AttachableContext;
 import net.nennneko5787.lepus.core.format.render.AttachablePoser;
 import net.nennneko5787.lepus.core.format.render.Mat4f;
@@ -248,6 +249,53 @@ public final class AddonSurvey {
      */
     public static List<String> attachableReport(Path root, String identifier, String view,
             String slot, String doing, String skip) throws IOException {
+        Posed posed = pose(root, identifier, "first".equalsIgnoreCase(view),
+                !"off".equalsIgnoreCase(slot), doing, skip);
+        if (posed.failure() != null) {
+            return List.of(posed.failure());
+        }
+        List<String> lines = new ArrayList<>(posed.header());
+        List<String> ran = new ArrayList<>();
+        for (int index = 0; index < posed.names().size(); index++) {
+            Optional<String> when = posed.conditions().get(index);
+            ran.add(posed.names().get(index) + (when.isEmpty() ? " always"
+                    : (posed.blends()[index] != 0f ? " YES" : " no"))
+                    + (posed.draws().length > index && !posed.draws()[index] ? " (draws nothing)" : ""));
+        }
+        lines.add("  plays: " + ran);
+        if (!posed.unresolved().isEmpty()) {
+            lines.add("  unresolved: " + posed.unresolved());
+        }
+        posed.controllerStates().forEach((name, state) ->
+                lines.add("  controller " + name + ": state " + state));
+        posed.unreadable().forEach(source -> lines.add("  UNREADABLE: " + source));
+        lines.addAll(extents(posed.geometry(), posed.pose()));
+        return lines;
+    }
+
+    /**
+     * One view, resolved once and kept, so that two views can be compared rather than diffed.
+     *
+     * @param names        the short names of {@code scripts.animate}, in the pack's order
+     * @param targets      what each short name names, so a reader can see a vanilla controller
+     * @param conditions   each entry's condition source, empty when it plays unconditionally
+     * @param blends       what each condition evaluated to, <b>after</b> {@code pre_animation} ran
+     * @param unresolved   entries naming an animation OR controller no pack ships
+     * @param pose         every bone's transform, in Bedrock's own space
+     */
+    private record Posed(String failure, String geometryId, GeometryIr geometry,
+            List<String> names, List<String> targets, List<Optional<String>> conditions,
+            float[] blends, boolean[] draws, List<String> unresolved, Map<String, Mat4f> pose,
+            Map<String, String> controllerStates, List<String> unreadable, List<String> header) {
+    }
+
+    /**
+     * Builds one view, exactly as the renderer would. {@link #attachableReport} and
+     * {@link #viewComparison} are both formatters over this, so the two can never report a frame
+     * the renderer does not draw.
+     */
+    private static Posed pose(Path root, String identifier, boolean firstPerson, boolean mainHand,
+            String doing, String skip) throws IOException {
         List<Path> sources = new ArrayList<>();
         try (Stream<Path> entries = Files.list(root)) {
             entries.forEach(sources::add);
@@ -262,7 +310,7 @@ public final class AddonSurvey {
             }
         }
         if (attachable == null) {
-            return List.of("no attachable for " + identifier);
+            return failed("no attachable for " + identifier);
         }
         String geometryId = attachable.defaultGeometry().orElse(null);
         GeometryIr geometry = null;
@@ -273,7 +321,7 @@ public final class AddonSurvey {
             }
         }
         if (geometry == null) {
-            return List.of(identifier + " names geometry " + geometryId + ", which resolves to none");
+            return failed(identifier + " names geometry " + geometryId + ", which resolves to none");
         }
 
         // Exactly the binder's resolution: every entry of scripts.animate that names something a
@@ -300,9 +348,14 @@ public final class AddonSurvey {
                                         .AnimationControllerPlayer(controller, byShortName)));
             }
         });
+
+        List<String> names = new ArrayList<>();
+        List<String> targets = new ArrayList<>();
+        List<Optional<String>> conditions = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+        List<Boolean> drawable = new ArrayList<>();
         List<Map.Entry<net.nennneko5787.lepus.core.format.render.Playable, Optional<String>>>
                 playing = new ArrayList<>();
-        List<String> skipped = new ArrayList<>();
         java.util.Set<String> heldOut = new java.util.LinkedHashSet<>();
         for (String name : skip.split(",")) {
             if (!name.isBlank()) {
@@ -311,19 +364,29 @@ public final class AddonSurvey {
         }
         for (AttachableIr.Play play : attachable.animate()) {
             String named = attachable.animations().get(play.name());
+            names.add(play.name());
+            targets.add(named == null ? "(not in this attachable's animations map)" : named);
+            conditions.add(play.condition());
             var playable = byShortName.get(play.name());
             if (playable == null) {
-                skipped.add(play.name() + " (" + named + ")");
+                unresolved.add(play.name() + " (" + named + ")");
+                drawable.add(null);
                 continue;
             }
-            if (heldOut.contains(play.name())) {
-                continue;
+            // An entry's condition firing is not the animation drawing. A zero-length loop ends on
+            // every frame and contributes nothing at any blend, and the corpus's two characters
+            // differ by exactly that - so the two facts are recorded apart.
+            drawable.add(!(playable instanceof AnimationSampler sampler) || sampler.contributes());
+            if (!heldOut.contains(play.name())) {
+                playing.add(Map.entry(playable, play.condition()));
             }
-            playing.add(Map.entry(playable, play.condition()));
+        }
+        boolean[] draws = new boolean[names.size()];
+        for (int index = 0; index < names.size(); index++) {
+            Boolean value = drawable.get(index);
+            draws[index] = value != null && value;
         }
 
-        boolean firstPerson = "first".equalsIgnoreCase(view);
-        boolean mainHand = !"off".equalsIgnoreCase(slot);
         AttachableContext context = (firstPerson
                 ? AttachableContext.firstPerson(mainHand)
                 : AttachableContext.thirdPerson(mainHand))
@@ -341,67 +404,220 @@ public final class AddonSurvey {
         Map<String, Mat4f> skeleton = firstPerson
                 ? AttachablePoser.FIRST_PERSON_WEARER
                 : Map.of("head", Mat4f.IDENTITY, "body", Mat4f.IDENTITY);
-        // WHICH ENTRIES ACTUALLY RAN, not merely which exist. A conditional entry is the whole
-        // difference between two views and between the two hands, and a report that lists the
-        // conditions without answering them leaves the reader to evaluate Molang in their head.
-        //
-        // EVALUATED AFTER THE POSE, because that is when the poser evaluates them: `pre_animation`
-        // has run by then and its variables are what the conditions read. Moving this ahead of the
-        // pose made it print "no" for entries the pose had applied, and the extents beside it said
-        // otherwise. Whichever order the poser uses, this must use the same one — it has now been
-        // wrong in both directions on the same day.
+
         // ONE playback for the report, so the clocks and the controller's state are this holder's -
         // a fresh one, which is a player who has just picked the item up. Reading the state back
         // afterwards must not step the machine again; `currentState` is for that.
         net.nennneko5787.lepus.core.format.render.Playback playback =
                 new net.nennneko5787.lepus.core.format.render.Playback();
-        Map<String, Mat4f> pose = new AttachablePoser(geometry, playing, attachable.preAnimation())
+        Map<String, Mat4f> matrices = new AttachablePoser(geometry, playing, attachable.preAnimation())
                 .at(playback, context, skeleton);
 
-        List<String> lines = new ArrayList<>();
-        lines.add(identifier + " as " + geometryId + ", " + (firstPerson ? "first" : "third")
-                + " person, " + (mainHand ? "main" : "off") + " hand, t=0"
-                + (doing.isBlank() ? "" : ", wearer " + doing)
-                + (heldOut.isEmpty() ? "" : ", WITHOUT " + heldOut));
-        List<String> ran = new ArrayList<>();
-        for (AttachableIr.Play play : attachable.animate()) {
-            String verdict = play.condition()
-                    .map(when -> {
-                        float value;
-                        try {
-                            value = MolangExpr.compile(when).evaluate(context);
-                        } catch (RuntimeException unparsed) {
-                            return " UNREADABLE";
-                        }
-                        return value != 0f ? " YES" : " no";
-                    })
-                    .orElse(" always");
-            ran.add(play.name() + verdict);
+        // CONDITIONS EVALUATED AFTER THE POSE, because that is when the poser evaluates them:
+        // `pre_animation` has run by then and its variables are what the conditions read. Moving
+        // this ahead of the pose made it print "no" for entries the pose had applied, and the
+        // extents beside it said otherwise. Whichever order the poser uses, this must use the same
+        // one — it has now been wrong in both directions on the same day.
+        float[] blends = new float[names.size()];
+        List<String> unreadable = new ArrayList<>();
+        for (int index = 0; index < names.size(); index++) {
+            Optional<String> when = conditions.get(index);
+            if (when.isEmpty()) {
+                blends[index] = 1f;
+                continue;
+            }
+            try {
+                blends[index] = MolangExpr.compile(when.get()).evaluate(context);
+            } catch (RuntimeException unparsed) {
+                blends[index] = 0f;
+            }
         }
-        lines.add("  plays: " + ran);
-        if (!skipped.isEmpty()) {
-            lines.add("  unresolved: " + skipped);
-        }
+        playing.forEach(entry -> entry.getKey().unreadableExpressions().forEach(unreadable::add));
+
         // WHICH STATE each controller is in, and whether that state draws anything. A controller
         // whose current state names an animation the attachable does not define is the normal case
         // (SC-180 §5), and on screen it is indistinguishable from a controller that did not run at
         // all - which is what this build did with every one of them until now.
+        Map<String, String> states = new java.util.LinkedHashMap<>();
         byShortName.forEach((shortName, playable) -> {
             if (playable instanceof net.nennneko5787.lepus.core.format.render
                     .AnimationControllerPlayer machine) {
-                lines.add("  controller " + shortName + ": state "
-                        + machine.currentState(playback));
+                states.put(shortName, machine.currentState(playback));
             }
         });
-        // An expression that would not compile answers zero and costs one channel, which on screen
-        // is a limb resting at its bind angle - indistinguishable from an animation that simply does
-        // not move it. The sampler has always recorded these; nothing asked.
-        for (var entry : playing) {
-            entry.getKey().unreadableExpressions()
-                    .forEach(source -> lines.add("  UNREADABLE: " + source));
+
+        List<String> header = List.of(identifier + " as " + geometryId + ", "
+                + (firstPerson ? "first" : "third") + " person, "
+                + (mainHand ? "main" : "off") + " hand, t=0"
+                + (doing.isBlank() ? "" : ", wearer " + doing)
+                + (heldOut.isEmpty() ? "" : ", WITHOUT " + heldOut));
+        return new Posed(null, geometryId, geometry, names, targets, conditions, blends, draws,
+                unresolved, matrices, states, unreadable, header);
+    }
+
+    private static Posed failed(String reason) {
+        return new Posed(reason, null, null, List.of(), List.of(), List.of(), new float[0],
+                new boolean[0], List.of(), Map.of(), Map.of(), List.of(), List.of());
+    }
+
+    private static String drawCell(Posed posed, int index) {
+        if (index >= posed.draws().length) {
+            return "-";
         }
-        lines.addAll(extents(geometry, pose));
+        return posed.unresolved().stream().anyMatch(entry -> entry.startsWith(
+                posed.names().get(index) + " ")) ? "-" : (posed.draws()[index] ? "yes" : "NO");
+    }
+
+    /**
+     * Both views of one attachable, side by side. {@code spec/process.md} §1.
+     *
+     * <p><b>For the question "the two views disagree — is it the space, the pose, or a file nobody
+     * has".</b> {@link #attachableReport} answers that for one view and leaves the other as a
+     * second run to diff by eye, which is how a third-of-a-block disagreement came to be argued
+     * about in prose for a week. Three things are printed that a screenshot cannot give you:
+     *
+     * <ul>
+     *   <li><b>which entries of {@code scripts.animate} resolved, in each view.</b> An entry naming
+     *       an animation controller that no pack ships is printed unresolved. That is a real and
+     *       common case and not an error — three of the corpus's attachables name vanilla's
+     *       {@code controller.animation.elytra.default}, which no pack ships, and a build with no
+     *       vanilla animation namespace at all will always print it that way. Whether it costs
+     *       anything is decided by whether the states name animations the attachable defines.
+     *   <li><b>the blend each entry reached</b>, so a condition that fires in one view and not the
+     *       other reads {@code 1.00 / 0.00} instead of being inferred.
+     *   <li><b>each bone's facing direction and its scale</b>, in Bedrock's own space. Both are
+     *       properties of the <em>pose</em>, so they ARE comparable between the views — which the
+     *       extents are not, those being in each view's own space, and putting them in one space
+     *       needs a player yaw this tool does not have and will not invent. <b>A face drawn the
+     *       wrong way round is a number here and an opinion in a frame.</b>
+     * </ul>
+     *
+     * <p><b>The player's own position is not printed, because it is not knowable here.</b> What is
+     * printed is where each view <em>puts</em> the model relative to its own origin, which is the
+     * part the two views can be blamed for.
+     *
+     * @param slot  {@code main} or {@code off}; a pack gates its first-person animation on it
+     * @param doing comma-separated wearer flags, as {@link #attachableReport}
+     */
+    public static List<String> viewComparison(Path root, String identifier, String slot, String doing)
+            throws IOException {
+        boolean mainHand = !"off".equalsIgnoreCase(slot);
+        Posed first = pose(root, identifier, true, mainHand, doing, "");
+        Posed third = pose(root, identifier, false, mainHand, doing, "");
+        List<String> lines = new ArrayList<>();
+        if (first.failure() != null || third.failure() != null) {
+            return List.of(first.failure() != null ? first.failure() : third.failure());
+        }
+        lines.add(identifier + " as " + first.geometryId() + ": BOTH views, "
+                + (mainHand ? "main" : "off") + " hand, t=0"
+                + (doing.isBlank() ? "" : ", wearer " + doing));
+        lines.add("");
+        lines.add("a player standing still, looking straight ahead, and where each view puts the model:");
+        lines.add(String.format(java.util.Locale.ROOT,
+                "  first   origin at the eye, nothing rotated        axes %s   eye %.2f",
+                java.util.Arrays.toString(AttachableSpace.IN_FIRST_PERSON),
+                AttachableSpace.STANDING_EYE_HEIGHT));
+        lines.add(String.format(java.util.Locale.ROOT,
+                "  third   origin at Java's y 24, the ground          axes %s   floor %.2f",
+                java.util.Arrays.toString(AttachableSpace.ON_PLAYER),
+                AttachableSpace.THIRD_PERSON_FLOOR));
+        lines.add("  the two spaces are not one space with two origins, and the difference is not the");
+        lines.add("  origin: first person has no player model to hang anything on, which is why its");
+        lines.add("  axes carry one more sign flip than the third-person ones do.");
+        lines.add("  the scale a first-person pass applies on top is " + AttachableSpace.PLAYER_MODEL_SCALE
+                + " and is NOT MEASURED - see AttachableSpace for why that matters.");
+        lines.add("");
+        lines.add("=== scripts.animate, per view: what resolved, and what it evaluated to ===");
+        lines.add("  `blend` is what the CONDITION answered. `draws` is whether the animation can");
+        lines.add("  contribute at all - a zero-length loop ends on every frame, so a condition that");
+        lines.add("  reads 1.00 can still draw nothing, and the corpus has exactly that pair.");
+        lines.add(String.format("  %-20s %-44s %7s %5s %7s %5s", "entry", "names",
+                "blend 1st", "draw", "blend 3rd", "draw"));
+        int count = Math.max(first.names().size(), third.names().size());
+        for (int index = 0; index < count; index++) {
+            String name = index < first.names().size() ? first.names().get(index)
+                    : third.names().get(index);
+            String target = index < first.targets().size() ? first.targets().get(index)
+                    : third.targets().get(index);
+            lines.add(String.format("  %-20s %-44s %7s %5s %7s %5s", name, target,
+                    blendCell(first, index), drawCell(first, index),
+                    blendCell(third, index), drawCell(third, index)));
+        }
+        if (!first.unresolved().isEmpty() || !third.unresolved().isEmpty()) {
+            lines.add("  unresolved, first: "
+                    + (first.unresolved().isEmpty() ? "-" : String.join(", ", first.unresolved())));
+            lines.add("  unresolved, third: "
+                    + (third.unresolved().isEmpty() ? "-" : String.join(", ", third.unresolved())));
+        }
+        first.controllerStates().forEach((name, state) ->
+                lines.add("  controller " + name + ": first-person state " + state));
+        lines.add("");
+        lines.add("=== per bone, the POSE - the same space in both views, so comparable ===");
+        lines.add(String.format("  %-12s %-24s %-24s %-20s %-20s", "bone",
+                "facing, first", "facing, third", "scale, first", "scale, third"));
+        for (var bone : first.geometry().bones()) {
+            if (bone.cubes().isEmpty()) {
+                continue;
+            }
+            lines.add(String.format("  %-12s %-24s %-24s %-20s %-20s", bone.name(),
+                    axis(first.pose().get(bone.name()), 2),
+                    axis(third.pose().get(bone.name()), 2),
+                    scaleOf(first.pose().get(bone.name())),
+                    scaleOf(third.pose().get(bone.name()))));
+        }
+        lines.add("");
+        lines.add("=== the whole model, in each view's OWN space (blocks) - not comparable ===");
+        lines.add("  first:");
+        lines.addAll(shift(extents(first.geometry(), first.pose())));
+        lines.add("  third:");
+        lines.addAll(shift(extents(third.geometry(), third.pose())));
         return lines;
+    }
+
+    private static String blendCell(Posed posed, int index) {
+        if (index >= posed.blends().length) {
+            return "-";
+        }
+        return posed.blends()[index] == 0f ? "0.00" : String.format(java.util.Locale.ROOT, "%.2f",
+                posed.blends()[index]);
+    }
+
+    /** A bone's local axis after the pose, as a short triple. {@code axis} 2 is the facing. */
+    private static String axis(Mat4f matrix, int axis) {
+        if (matrix == null) {
+            return "(no pose)";
+        }
+        float[] m = matrix.m();
+        float x = m[axis * 4];
+        float y = m[axis * 4 + 1];
+        float z = m[axis * 4 + 2];
+        return axis == 2
+                ? String.format(java.util.Locale.ROOT, "%.2f %.2f %.2f", -x, -y, -z)
+                : String.format(java.util.Locale.ROOT, "%.2f %.2f %.2f", x, y, z);
+    }
+
+    /** The three column lengths: the scale the pose applies, per axis, sign dropped. */
+    private static String scaleOf(Mat4f matrix) {
+        if (matrix == null) {
+            return "(no pose)";
+        }
+        float[] m = matrix.m();
+        StringBuilder out = new StringBuilder();
+        for (int axis = 0; axis < 3; axis++) {
+            double length = Math.sqrt(
+                    (double) m[axis * 4] * m[axis * 4]
+                            + (double) m[axis * 4 + 1] * m[axis * 4 + 1]
+                            + (double) m[axis * 4 + 2] * m[axis * 4 + 2]);
+            out.append(axis == 0 ? "" : " ").append(String.format(java.util.Locale.ROOT, "%.2f",
+                    length));
+        }
+        return out.toString();
+    }
+
+    private static List<String> shift(List<String> extents) {
+        List<String> out = new ArrayList<>();
+        extents.forEach(line -> out.add("  " + line.strip()));
+        return out;
     }
 
     /**
@@ -651,7 +867,9 @@ public final class AddonSurvey {
         return lines;
     }
 
-    /** The wearer's state, as a comma-separated list of the things a controller asks about. */
+    /**
+     * The wearer's state, as a comma-separated list of the things a controller asks about.
+     */
     private static AttachableContext.Wearer wearerDoing(String doing) {
         java.util.Set<String> flags = new java.util.LinkedHashSet<>();
         for (String flag : doing.split(",")) {
@@ -680,12 +898,18 @@ public final class AddonSurvey {
                     .forEach(System.out::println);
             return;
         }
-        // `attachable.<identifier> [first|third]` poses a real attachable the way a VIEW does -
-        // every entry of scripts.animate, conditions evaluated. Distinct from the line above, which
-        // applies one named animation: composition is where the answers differ.
+        // `attachable.<identifier> compare` puts the two views side by side — which entries
+        // resolved, what each condition evaluated to, and each bone's facing and scale. For "the
+        // views disagree: is it the space, the pose, or a file nobody has", which a screenshot
+        // cannot answer and two separate runs invite you to guess at.
         if (args.length >= 2 && args[1].startsWith("attachable.")) {
-            attachableReport(Path.of(args[0]), args[1].substring("attachable.".length()),
-                    args.length > 2 ? args[2] : "third",
+            String id = args[1].substring("attachable.".length());
+            if (args.length > 2 && "compare".equalsIgnoreCase(args[2])) {
+                viewComparison(Path.of(args[0]), id, args.length > 3 ? args[3] : "main",
+                        args.length > 4 ? args[4] : "").forEach(System.out::println);
+                return;
+            }
+            attachableReport(Path.of(args[0]), id, args.length > 2 ? args[2] : "third",
                     args.length > 3 ? args[3] : "main",
                     args.length > 4 ? args[4] : "",
                     args.length > 5 ? args[5] : "").forEach(System.out::println);

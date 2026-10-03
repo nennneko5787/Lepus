@@ -123,36 +123,90 @@ entries:
       It does need its own path, and the reason is not that hand rendering is awkward: Bedrock does
       not draw an attachable at the hand at all. It poses it in PLAYER space, which in first person
       is a space the game never draws in, because no player model is submitted. So the space is
-      rebuilt against the camera - the camera's pitch and its yaw-over-body undone, the origin then
-      dropped to the feet, and the whole scaled by the 0.9375 a player model carries.
+      rebuilt against the camera, and the order that survives measurement is the short one: the
+      origin is dropped to the feet by the player's own eye height, read per frame, and NOTHING is
+      rotated. Two Bedrock screenshots, one pitched fully up and one fully down, put the
+      character's parts in the same screen positions - so the model rides the camera, and undoing the
+      camera was tried and had to come out.
 
-      ORDER, not sign, is what that list is about. Stepping down to the feet before undoing the
-      pitch drops the model along a tilted axis, misplacing it by 1.62 sin(pitch) horizontally -
-      "looking up moves her up and forward, looking down the reverse".
+      AN EARLIER VERSION OF THIS NOTE DESCRIBED AN IMPLEMENTATION THAT NO LONGER EXISTS. It
+      explained the space as undoing the camera's pitch and its yaw-over-body, and it justified the
+      order of the steps by a 1.62 sin(pitch) error that ordering would have caused. All of that was
+      removed with the rotation it described. Read this paragraph, not that one.
 
-      Pitch is undone because a player layer is not pitched either; Java tilts the head bone, not
-      the body. Yaw is taken back to the BODY's, because Minecraft lets head and body differ by
-      fifty degrees and a camera-anchored model slides off the player's back as the mouse moves.
+      The scale is the part with no measurement behind it. First person multiplies by the 0.9375 a
+      player model carries, written out by hand because nothing in the first-person pass supplies
+      it, and the reason recorded in the source is that the model was "6.7% larger than the same
+      model on the same player seen from outside". That reason is the premise the rotation work
+      above refuted - first person is not the player's space, so its size is not the third-person
+      size - and the constant outlived the diagnosis, the same way a mirror once did. Two paired
+      captures of the corpus's body-parented character put its head visibly LARGER on the Bedrock
+      client than here, by more than 6.7%, so removing the constant is not known to be the whole of
+      it and is not known to be right either. It needs its own frame.
 
       A worn attachable is not drawn in first person. The seam is the hand render, which is offered
       the two hands and nothing else; the four armour slots reach the third-person layer only. A
       halo sits above and behind the eye and would be invisible anyway, but an armour attachable
       that reaches in front of the player is a real omission rather than a hidden one.
 
-      Confirmed against the Bedrock client in COMPOSITION: the body-parented character appears at
-      the screen's left, point-blank, face visible, on both clients - the product of three measured
-      rules (channels independent and translation outermost, SC-180 section 4.1.3; conditions fire,
-      section 4.4; the wearer's `body` carries a half turn in first person, section 4.2.1), each
-      read off original-content probes rather than fitted.
+      WHAT IS CONFIRMED, and what is not, was re-measured against a pair of captures rather than
+      inherited. Confirmed: the channel composition (independent channels, translation outermost,
+      SC-180 section 4.1.3), that a conditional entry fires (section 4.4), that the wearer's `body`
+      carries a half turn in first person (section 4.2.1), and that a model in this build lands where
+      the offline survey says it does - the survey's own numbers predict this build's head centre at
+      20% of screen width and the capture puts it at 20%, so the instrument is good to about 1.5%
+      and the numbers below it can be believed.
 
-      The observable difference that remains: in first person the model sits slightly more centred
-      and slightly nearer than the Bedrock client draws it - under a block, visible when the two
-      screenshots are compared side by side, invisible without them. Both clients draw this pass
-      with a fixed projection that ignores the FOV setting (measured), and the difference between
-      those two fixed projections is not a vertical 60-versus-70: scaling camera-space x and y by
-      tan(35)/tan(30) - the correction that premise derives - made the confirmed-matching character
-      visibly worse. Five fitted constants and one derived one have died on this residual. No
-      further constant goes in without a premise that survives the waist-parented character.
+      NOT confirmed, and now contradicted: the claim that the character appears "face visible, on
+      both clients". On the same pair of captures her face is visible on the Bedrock client and NOT
+      here. The head's net rotation about Y is what decides that, and this build's is 180 (wearer)
+      plus -85 (`root2`, the pack's own first-person animation) plus -25 (`head2`) = +70 degrees, so
+      she is turned away. No combination of the two wearer's half turns and either sign of the
+      pack's own angles reaches zero, which is what a face-on head needs - so the difference is not
+      the wearer's half turn and has not been located.
+
+      The bone rotation order (SC-180 section 4.2) is NOT the cause either, and that was worth
+      knowing: all six orders were computed over the real rig and every one of them leaves the head
+      turned away, the whole extents moving by under half a block. A rig whose head chain turns
+      about one axis at a time cannot testify about the order, and this one cannot be fixed by
+      choosing among them.
+
+      Both clients draw this pass with a fixed projection that ignores the FOV setting (measured),
+      and the difference between those two fixed projections is not a vertical 60-versus-70:
+      scaling camera-space x and y by tan(35)/tan(30) - the correction that premise derives - made
+      the matched character visibly worse. Five fitted constants and one derived one have died on
+      this residual, and a sixth will not be found by fitting. The survey is the instrument that
+      does not fit, and what it needs next is a probe carrying a gauge of known length, so that size
+      and distance arrive as numbers instead of as a comparison of two silhouettes.
+
+      `:testkit:survey` can now answer the two-view question in one run
+      (`attachable.<id> compare`): which entries of `scripts.animate` resolved in each view, what
+      each condition evaluated to, whether each animation can draw at all, and each bone's facing
+      and scale. The last two are properties of the POSE and so compare across views, which the
+      extents do not - those are in each view's own space, and putting them in one space needs a
+      player yaw an offline tool does not have and will not invent. Run against the corpus's two
+      characters it separates them in a single cell: the `waist`-parented one's first-person
+      animation reads a blend of 1.00 and DRAWS NOTHING, because it is a zero-length `loop: true`
+      that ends on every frame, while the `body`-parented one's reads the same 1.00 and draws.
+      Every bone of the first poses identically in both views; every bone of the second differs.
+      **That is the whole of the difference between a character that is right in both views and one
+      that is not, and it is the `loop` rule of SC-180 section 4.1 - not a coordinate space, not a
+      projection, and not a constant.** The one open question this leaves is whether the Bedrock
+      client applies that second character's zero-length `hold_on_last_frame` at all, because if it
+      does not she would sit at bind-plus-idle there, her head facing the viewer, which is what the
+      capture shows. That is a question about the engine, not about a number to add.
+
+      Three of the corpus's attachables name vanilla's `controller.animation.elytra.default` in
+      `scripts.animate` and no pack ships it, so this build resolves the entry to nothing and prints
+      it unresolved in BOTH views. Checked against Mojang's own file rather than assumed: the
+      controller's states play the bare short names `default`, `gliding`, `sneaking`, `sleeping` and
+      `swimming`, and short names resolve against the attachable's own `animations` map, which
+      defines none of those five for this item - so it is inert here, and its absence cannot be the
+      first-person difference. **The general gap is real, though, and worth naming: this build has
+      no vanilla animation namespace at all, so a pack naming a vanilla animation or animation
+      controller silently loses it.** That is a missing-implementation category rather than a bug, and
+      nothing in the ledger records it.
+
   - id: attachable/worn
     status: partial
     impl: net.nennneko5787.lepus.client.render.AttachableLayer
