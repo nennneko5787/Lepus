@@ -1,0 +1,218 @@
+{
+  "diagnostics": [],
+  "packs": [
+    {
+      "behavior": {
+        "blocks": {
+          "sc_conformance:halo": {
+            "components": ["minecraft:geometry","minecraft:material_instances","minecraft:collision_box"],
+            "identifier": "sc_conformance:halo",
+            "menuCategory": "construction",
+            "model": [
+              {
+                "elements": [
+                  {
+                    "faces": {
+                      "down": {
+                        "texture": "#0",
+                        "uv": [0,0,16,16]
+                      },
+                      "east": {
+                        "texture": "#0",
+                        "uv": [0,0,16,1]
+                      },
+                      "north": {
+                        "texture": "#0",
+                        "uv": [0,0,16,1]
+                      },
+                      "south": {
+                        "texture": "#0",
+                        "uv": [0,0,16,1]
+                      },
+                      "up": {
+                        "texture": "#0",
+                        "uv": [0,0,16,16]
+                      },
+                      "west": {
+                        "texture": "#0",
+                        "uv": [0,0,16,1]
+                      }
+                    },
+                    "from": [0,0,0],
+                    "to": [16,1,16]
+                  },
+                  {
+                    "faces": {
+                      "down": {
+                        "texture": "#0",
+                        "uv": [0,0,16,16]
+                      },
+                      "east": {
+                        "texture": "#0",
+                        "uv": [0,0,16,0]
+                      },
+                      "north": {
+                        "texture": "#0",
+                        "uv": [0,0,16,0]
+                      },
+                      "south": {
+                        "texture": "#0",
+                        "uv": [0,0,16,0]
+                      },
+                      "up": {
+                        "texture": "#0",
+                        "uv": [0,0,16,16]
+                      },
+                      "west": {
+                        "texture": "#0",
+                        "uv": [0,0,16,0]
+                      }
+                    },
+                    "from": [0,8,0],
+                    "to": [16,8,16]
+                  }
+                ],
+                "parent": "minecraft:block/block",
+                "textures": {
+                  "0": "sc_conformance_halo",
+                  "particle": "sc_conformance_halo"
+                }
+              }
+            ],
+            "permutations": [],
+            "physics": [
+              {
+                "collision": [0,0,0,16,2,16]
+              }
+            ],
+            "resolved": [
+              ["minecraft:geometry","minecraft:material_instances","minecraft:collision_box"]
+            ],
+            "stateCount": 1,
+            "states": []
+          }
+        }
+      },
+      "capabilities": [],
+      "dependencies": [],
+      "files": ["blocks/sc_conformance_halo.json","manifest.json","models/blocks/sc_conformance_halo.geo.json"],
+      "formatVersion": 2,
+      "header": {
+        "baseGameVersion": "0.0.0",
+        "description": "A plate with no thickness, which is how a Bedrock model draws a halo. Original content, authored for this project.",
+        "minEngineVersion": "1.21.0",
+        "name": "Lepus Conformance Halo",
+        "scope": "ANY",
+        "version": "1.0.0"
+      },
+      "id": "5c00c1e0-0000-4000-8000-000000000201",
+      "loadOrder": 0,
+      "modules": [
+        {
+          "declaredType": "data",
+          "type": "DATA",
+          "version": "1.0.0"
+        },
+        {
+          "declaredType": "resources",
+          "type": "RESOURCES",
+          "version": "1.0.0"
+        }
+      ],
+      "resource": {
+        "geometries": {
+          "geometry.sc_conformance.halo": {
+            "bones": [
+              {
+                "cubes": [
+                  {
+                    "origin": [-8,0,-8],
+                    "size": [16,1,16],
+                    "uv": {
+                      "down": {
+                        "uv": [0,0],
+                        "uvSize": [16,16]
+                      },
+                      "east": {
+                        "uv": [0,0],
+                        "uvSize": [16,1]
+                      },
+                      "north": {
+                        "uv": [0,0],
+                        "uvSize": [16,1]
+                      },
+                      "south": {
+                        "uv": [0,0],
+                        "uvSize": [16,1]
+                      },
+                      "up": {
+                        "uv": [0,0],
+                        "uvSize": [16,16]
+                      },
+                      "west": {
+                        "uv": [0,0],
+                        "uvSize": [16,1]
+                      }
+                    }
+                  },
+                  {
+                    "origin": [-8,8,-8],
+                    "size": [16,0,16],
+                    "uv": {
+                      "down": {
+                        "uv": [0,0],
+                        "uvSize": [16,16]
+                      },
+                      "east": {
+                        "uv": [0,0],
+                        "uvSize": [16,0]
+                      },
+                      "north": {
+                        "uv": [0,0],
+                        "uvSize": [16,0]
+                      },
+                      "south": {
+                        "uv": [0,0],
+                        "uvSize": [16,0]
+                      },
+                      "up": {
+                        "uv": [0,0],
+                        "uvSize": [16,16]
+                      },
+                      "west": {
+                        "uv": [0,0],
+                        "uvSize": [16,0]
+                      }
+                    }
+                  }
+                ],
+                "name": "root",
+                "pivot": [0,0,0],
+                "rotation": [0,0,0]
+              }
+            ],
+            "declaredVersion": "1.21.0",
+            "effectiveVersion": "1.12.0",
+            "identifier": "geometry.sc_conformance.halo",
+            "lossy": false,
+            "sourceFamily": "modern",
+            "textureHeight": 16,
+            "textureWidth": 16
+          }
+        }
+      },
+      "source": "pack",
+      "sourceKind": "DIRECTORY",
+      "subpack": {
+        "available": [],
+        "ceiling": 0,
+        "selected": false
+      },
+      "texts": {
+        "entries": {},
+        "languages": []
+      },
+      "unknownCapabilities": []
+    }
+  ]
+}

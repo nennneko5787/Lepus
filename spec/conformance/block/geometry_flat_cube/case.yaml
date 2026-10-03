@@ -1,0 +1,77 @@
+# Schema: spec/schemas/conformance-case.schema.json
+
+id: block/geometry_flat_cube
+tier: T0
+spec: SC-150
+
+features:
+  - "minecraft:geometry"
+
+description: >-
+  A cube with no thickness on an axis emits BOTH of the flat axis's faces, and this was measured
+  rather than reasoned (SC-150 §5.3.1). Bedrock models are full of them — eyes, hair strands, halos
+  and skirt panels are all a box with a zero size on one axis — so the obvious question is whether
+  Path A should drop one.
+
+  It should not, and the first attempt at this case asserted that it should. Dropping `up` from a
+  zero-height cube made a real trophy's halo disappear from the world entirely, which says the
+  opposite of what the rule claimed: Minecraft's block model baker already resolves the degeneracy,
+  and it resolves it by drawing one of the pair. `up` was the one being drawn; `down` was never
+  visible in the first place. There were never two coplanar quads fighting over the depth buffer.
+
+  The attachable path does need to drop one, because it builds its own quads with culling off. The
+  two paths are not symmetric and the difference is theirs, not ours — which is the reason this
+  case exists as a measurement rather than as an inference from the other half.
+
+pack:
+  extends: minimal_bp
+  dir: pack
+  container: directory
+
+diagnostics:
+  forbidden:
+    - SCE-1035          # nothing here is malformed
+    - SCE-1036          # every bone is named
+  exhaustive: false
+
+expect:
+  ir: expected/ir.json
+
+assert:
+  # A cube that HAS thickness: all six, so the flat one below is not just "some faces".
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.up
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.down
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.north
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.south
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.east
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[0].faces.west
+    absent: false
+
+  # The flat one: from and to agree on Y, which is what makes it a plate rather than a box.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].from
+    equals: "[0,8,0]"
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].to
+    equals: "[16,8,16]"
+
+  # THE CLAIM, and it is the opposite of the first version of this file. `up` is the face
+  # Minecraft's baker draws, so dropping it is what deleted the halo. Both are emitted.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.up
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.down
+    absent: false
+
+  # And the four edges, which are zero-area on this element and are kept anyway: a plate has edges,
+  # and dropping the whole element instead of one face would also drop the box.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.north
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.south
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.east
+    absent: false
+  - that: ir.packs[0].behavior.blocks['sc_conformance:halo'].model[0].elements[1].faces.west
+    absent: false

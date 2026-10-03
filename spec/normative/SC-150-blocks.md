@@ -311,6 +311,92 @@ lucky.
 | `mirror` | flips U | no counterpart; baked by swapping the face's two U coordinates |
 | `never_render` | bone draws nothing | no counterpart; the bone's cubes are dropped |
 
+#### 5.3.1 A cube with no thickness: both faces are emitted, and that is measured
+
+**Path A emits BOTH faces of a zero-thickness axis, and this is an observation rather than a
+reasoning.** It is recorded here because the opposite rule was written, shipped and refuted by the
+world.
+
+Bedrock models are full of such cubes. Eyes, hair strands, halos and skirt panels are all written as
+a box with a zero size on one axis — a **verified** count over the surveyed packs is 420 degenerate
+cubes, 14 axes' worth of which reach the 18 models Path A accepts. The obvious inference is that
+both faces of the flat axis should not be emitted, because two quads in the same plane fight over
+the depth buffer. That inference is **wrong here**, and it was made by carrying the attachable
+path's rule across without asking whether the two paths do the same thing.
+
+The measurement: dropping `up` from a zero-height cube made a real block's halo — a trophy's top
+plate, `size: [24, 0, 15]` — **disappear from the world entirely**. It had been visible before. So
+Minecraft's block model baker already resolves the degeneracy, and it resolves it by drawing one of
+the pair: `up` was the one being drawn, `down` was never visible, and there were never two coplanar
+quads to fight.
+
+**Why the two paths differ, and why that is not ours to reconcile.** The attachable path builds its
+own quads and draws with culling **off**, so both faces really are drawn there and dropping one is
+correct — `AttachableGeometry.flatFace` is right and stays. This path hands Minecraft a
+`from`/`to` pair and lets its baker decide, and it decides. Two halves of one project, written in
+one commit, needed opposite answers, and the only way to tell which was which was to put a block in
+the world.
+
+**The trap worth naming:** the failing change was small, principled, had a faithful port to copy, and
+passed every test in the corpus. Nothing in a unit test could have caught it, because the corpus
+contains no assertion about what Minecraft's baker does with a degenerate element — only about
+what this transpiler writes. `block/geometry_flat_cube` now asserts what is written, and the reason
+it exists is the opposite of the reason it was first written.
+
+#### 5.3.2 A box UV that leaves the texture
+
+**A `uv` rectangle that falls outside the texture is out of range for a Java element, and Java reads
+it as out of range.** A block model's `uv` is 0–16 *across its own sprite*; anything outside that
+samples off the sprite, and where it lands is undefined. A verified count over the surveyed packs
+is 25 faces of 1230 across the 18 transpilable models — 11 with `u < 0`, 10 with `u > 16`, 6 with
+`v > 16`.
+
+Bedrock has no such range. A `uv` origin is stated in texels and may be **negative**, and the
+texture is treated as periodic, so a box at `uv: [-15, 11]` on a 64-wide texture means texels
+49–63 and 0–9 — it crosses the seam. The surveyed packs use this: one real block model, a trophy,
+states its top plate at exactly `uv: [-15, 11]`.
+
+**What Java does with the out-of-range number is a different question, and it is answered.** 1.21.11's
+`BlockElementFace.UVs` is a record of four floats with no validation, clamping or wrapping in it, so
+the number reaches the sampler exactly as written. The consequence is a **wrong picture, not a missing
+one**: `terrain.fsh` samples `Sampler0` at the given coordinates and discards nothing, so the sampler
+decides — a coordinate outside 0..1 lands on whatever the atlas holds there, which is a neighbouring
+sprite rather than the pack's own pixels.
+
+**AND THE TROPHY'S HALO IS NOT AN INSTANCE OF THIS.** Its plate is `size: [24, 0, 15]` at
+`uv: [-15, 11]` on a 64×64 texture, and SC-180 §3.3's box expansion puts the two faces that actually
+draw it at:
+
+| face | texel `u` | Java `u` | area |
+|---|---|---|---|
+| `up` | 0 → 24 | 0 → 6 | 24 × 15 — **in range** |
+| `down` | 24 → 48 | 6 → 12 | 24 × 15 — **in range** |
+| `north`/`south` | 0 → 24 | 0 → 6 | height 0 |
+| `east`/`west` | −15 → 0 | −3.75 → 0 | height 0 |
+
+So the only faces carrying `u < 0` are the four **zero-area** ones, and a face with no area draws
+nothing to be wrong about. This was checked because it was previously written down the other way
+round — as though the halo's disappearance were this defect — and a reader chasing that would be
+chasing a UV arithmetic problem for a symptom §5.3.1 accounts for completely.
+
+**NOT OBSERVED: how Bedrock resolves a box UV that crosses the seam, and therefore what this
+transpiler should emit.** This is stated as an open question rather than a rule because the two
+candidate answers are not equivalent and neither is verifiable from the packs:
+
+- **wrap** — shift by whole multiples of the texture's own size. Faithful only while the box is
+  narrower than the texture. The trophy's plate is 24 texels on a 64-wide texture, so shifting
+  `−15` by `+64` lands it at 49–73, still past the end; the faithful answer needs the rectangle split
+  at the seam, and a Java element cannot split one face into two.
+- **reject** — `SCE-2031`, the §5.2 fallback. Costs the whole model to fix one face, and the other
+  35 elements are right.
+
+What is not in doubt is the diagnosis: a UV emitted outside 0–16 does not sample the pack's own texels
+on any Minecraft version. **What replaces it is decided by a measurement nobody has taken yet** — a
+Bedrock frame of a model whose box UV crosses the seam, the same way §5.3.1's flat-cube question was
+settled by looking rather than by reading.
+
+Until that measurement exists, the honest entry state is `missing`, and the field says so.
+
 `collision_box` and `selection_box` go through **the same conversion, mirror included** (§4.1). That
 is a real argument rather than a preference: a pack author places a collision box and a model in one
 coordinate space, and Bedrock reads both. Converting them differently would put every asymmetric

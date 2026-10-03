@@ -67,7 +67,7 @@ entries:
   - id: minecraft:geometry
     status: partial
     impl: net.nennneko5787.lepus.core.format.ir.block.BlockGeometry
-    conformance: [block/geometry_transpile]
+    conformance: [block/geometry_transpile, block/geometry_flat_cube]
     fields:
       identifier: ok
       per_face_uv: ok
@@ -77,6 +77,8 @@ entries:
       never_render: ok
       cube_rotation: partial
       bone_rotation: partial
+      zero_extent_cube: ok
+      box_uv_outside_texture: missing
       bone_visibility: missing
       binding: missing
       poly_mesh: missing
@@ -102,6 +104,26 @@ entries:
 
       Faces carry no cullface, so a face that could have been hidden by a neighbour is drawn. That
       costs a quad and cannot produce a hole; the reverse can.
+
+      Two things SC-150 section 5.3.1 and 5.3.2 added after a real trophy was placed in both
+      editions and came out wrong in one:
+
+      A CUBE WITH NO THICKNESS on an axis is the rule that was got wrong first and refuted second.
+      §5.3.1 originally said to drop one of the flat axis's two faces, on the reasoning that two
+      coplanar quads fight over the depth buffer. That is the ATTACHABLE path's rule, where the
+      quads are built with culling off, carried over without asking whether the two paths behave
+      the same. Dropping `up` from a zero-height cube made a real trophy's halo disappear from the
+      world, so Minecraft's block model baker already resolves the degeneracy and resolves it by
+      drawing one of the pair. Both are emitted. 420 degenerate cubes were counted across the
+      surveyed packs and 14 axes' worth reach the 18 models Path A accepts, so this is the most
+      common shape in the corpus and the one most worth having measured rather than inferred.
+
+      A BOX UV OUTSIDE THE TEXTURE is emitted as it stands, and that half is NOT fixed. Java reads
+      uv as 0-16 across its own sprite, so 25 faces of 1230 sample off it — 11 at u<0, 10 at u>16, 6
+      at v>16. Bedrock treats a negative uv origin as a wrap, and a real block model uses one. What
+      Bedrock does where the box CROSSES the seam is not observed, so the replacement for the
+      current output is a measured question rather than a rule, and this field stays missing rather
+      than being written as one.
     notes: >-
       Path B — arbitrary rotation and poly meshes — needs quads outside a Java block model and the
       rendered-image goldens of SC-180 section 10, neither of which exists. Measured against the

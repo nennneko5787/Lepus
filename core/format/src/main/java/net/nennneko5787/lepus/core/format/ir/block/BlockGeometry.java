@@ -291,6 +291,19 @@ public final class BlockGeometry {
 
         Map<String, JsonValue> faces = new LinkedHashMap<>();
         boolean mirror = cube.mirror() || bone.mirror();
+        // BOTH faces of a zero-thickness axis are emitted, and this was measured rather than
+        // reasoned. §5.3.1 originally said to drop one, mirroring what the attachable path does, and
+        // dropping `up` from a flat cube made the trophy's halo disappear from the world entirely.
+        //
+        // So Minecraft's own block model baker already resolves the degeneracy, and it resolves it
+        // by drawing one of the pair: the halo was visible before and gone after, which means `up`
+        // was the one being drawn and `down` was never visible in the first place. There were never
+        // two coplanar quads fighting for the depth buffer here.
+        //
+        // The two paths are not symmetric and the reason is theirs, not ours. The attachable path
+        // builds its own quads with culling OFF, so it draws both and must drop one to avoid the
+        // fight. This path hands Minecraft a `from`/`to` pair and lets its baker decide, and it
+        // decides. Conjugating one path's fix onto the other is what produced the regression.
         for (CubeFace face : CubeFace.values()) {
             CubeFace placed = face;
             int uvTurn = 0;

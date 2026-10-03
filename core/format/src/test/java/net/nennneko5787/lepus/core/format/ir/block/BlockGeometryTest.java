@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -210,6 +211,118 @@ class BlockGeometryTest {
         String model = modelOf(cube("[-2, 0, -2]", "[4, 4, 4]", ", \"inflate\": 0.5"));
         assertTrue(model.contains("\"from\": [5.5,-0.5,5.5]"), model);
         assertTrue(model.contains("\"to\": [10.5,4.5,10.5]"), model);
+    }
+
+    /**
+     * <b>A cube with no thickness on an axis emits BOTH of its faces, and this is measured.</b>
+     *
+     * <p>§5.3.1 originally said to drop one, on the reasoning that two coplanar quads fight over the
+     * depth buffer. That reasoning is the attachable path's, where the quads are built with culling
+     * off, and it was carried here by analogy. It is wrong here: dropping {@code up} from a flat
+     * cube made the trophy's halo vanish from the world.
+     *
+     * <p>So Minecraft's block model baker already resolves the degeneracy, and it resolves it by
+     * drawing one of the pair. The halo was visible before and gone after, which is what says
+     * {@code up} was the one being drawn — {@code down} was never visible in the first place. There
+     * were never two quads fighting here.
+     *
+     * <p>This asserts the observation rather than the theory, because the theory is what was wrong.
+     * The real trophy's plate is {@code size: [24, 0, 15]}: a halo written as a zero-height box, and
+     * 420 such cubes across the surveyed packs.
+     */
+    @Test
+    void aCubeWithNoThicknessStillEmitsBothOfTheFlatAxisFaces() {
+        String model = modelOf(cube("[-12, 19, -4]", "[24, 0, 15]", ""));
+        assertTrue(model.contains("\"up\""),
+                "up is the face Minecraft's baker draws, so dropping it loses the cube: \n" + model);
+        assertTrue(model.contains("\"down\""), "and down is emitted for it to drop: \n" + model);
+        // The box itself is unchanged: a zero-thickness axis is still a zero-thickness axis, and
+        // 19 on both corners is what makes it flat. The Z numbers differ from the real trophy's
+        // because this fixture has no 180-degree root turn for §5.3's mirror to move Z with.
+        assertTrue(model.contains("\"from\": [-4,19,-3]"), model);
+        assertTrue(model.contains("\"to\": [20,19,12]"), model);
+    }
+
+    /** And the same on the other two axes, since the flat one is not special. */
+    @Test
+    void aFlatAxisIsEmittedWholeOnEveryAxis() {
+        for (String size : new String[] {"[16, 16, 0]", "[0, 16, 16]", "[16, 0, 16]"}) {
+            String model = modelOf(cube("[-8, 0, -8]", size, ""));
+            for (String face : new String[] {"north", "south", "east", "west", "up", "down"}) {
+                assertTrue(model.contains("\"" + face + "\""),
+                        "size " + size + " must still carry " + face + ":\n" + model);
+            }
+        }
+    }
+
+    /**
+     * <b>A box UV that leaves the texture is out of range for a Java element.</b> SC-150 §5.3.2.
+     *
+     * <p>A Java block model reads {@code uv} as 0–16 <em>across its own sprite</em>, so a value
+     * outside that samples off the sprite. Bedrock has no such range: a {@code uv} origin is stated in
+     * texels and may be negative, with the texture treated as periodic. This trophy states its top
+     * plate at exactly {@code uv: [-15, 11]} on a 64-wide texture, and the transpiler emitted
+     * {@code u = -3.75} — 25 faces of 1230 across the surveyed packs.
+     *
+     * <p><b>NOT the trophy's missing halo, which is what this javadoc used to say.</b> SC-180 §3.3's
+     * expansion puts the plate's two visible faces at {@code u} 0→6 and 6→12, both in range; the four
+     * faces carrying {@code u < 0} have height 0 and draw nothing to be wrong about. That symptom is
+     * §5.3.1's dropped face, and saying otherwise here sent a reader after UV arithmetic that cannot
+     * produce it.
+     *
+     * <p><b>This asserts the DEFECT, and that is the point.</b> SC-150 §5.3.2 records that what
+     * replaces it is not observed — whether Bedrock splits the rectangle at the seam or the box is
+     * simply refused is a measurement nobody has taken. A test that pinned a wrap would be
+     * asserting a guess, and would quietly become wrong the day the real answer arrives.
+     */
+    @Test
+    void aBoxUvOutsideTheTextureIsCountedRatherThanSilentlyAccepted() {
+        GeometryIr trophy = parse("""
+                {
+                  "format_version": "1.21.20",
+                  "minecraft:geometry": [{
+                    "description": {
+                      "identifier": "geometry.sc_trophy_plate",
+                      "texture_width": 64,
+                      "texture_height": 64
+                    },
+                    "bones": [{
+                      "name": "root",
+                      "pivot": [0, 0, 0],
+                      "cubes": [{
+                        "origin": [-12, 19, -4],
+                        "size": [24, 0, 15],
+                        "uv": [-15, 11]
+                      }]
+                    }]
+                  }]
+                }""");
+        assertTrue(BlockGeometry.transpilable(trophy), "the model itself transpiles fine");
+
+        String model = modelOf(trophy);
+        // Read every uv rectangle out of the emitted model and look at the numbers, rather than
+        // string-matching a layout this file would then have to restate whenever it changes.
+        List<Float> every = uvValues(model);
+        assertFalse(every.isEmpty(), "the model emitted faces at all:\n" + model);
+        // -15 texels on a 64-wide texture is -15/64*16 = -3.75 in Java's space, and Java's space
+        // stops at 0. Asserting the number rather than the symptom, because "looks wrong" is not a
+        // test anybody can fail on purpose.
+        assertTrue(every.contains(-3.75f),
+                "the negative box UV reaches the Java model as written: " + every);
+        assertTrue(every.stream().anyMatch(v -> v < 0f || v > 16f),
+                "at least one uv coordinate is outside the 0..16 a Java sprite is read in: " + every);
+    }
+
+    /** Every number appearing in any {@code uv} rectangle of a transpiled model, in order. */
+    private static List<Float> uvValues(String model) {
+        List<Float> out = new ArrayList<>();
+        Json.parse(model).asObject().orElseThrow().getArray("elements").orElseThrow().values()
+                .forEach(element -> element.asObject().orElseThrow()
+                        .getObject("faces").orElseThrow().members().values()
+                        .forEach(face -> face.asObject().orElseThrow()
+                                .getArray("uv").orElseThrow()
+                                .floats().forEach(out::add)));
+        return out;
     }
 
     @Test

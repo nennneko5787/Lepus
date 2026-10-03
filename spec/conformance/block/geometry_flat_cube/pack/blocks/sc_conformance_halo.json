@@ -1,0 +1,19 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "sc_conformance:halo",
+      "menu_category": { "category": "construction" }
+    },
+    "components": {
+      "minecraft:geometry": "geometry.sc_conformance.halo",
+      "minecraft:material_instances": {
+        "*": { "texture": "sc_conformance_halo" }
+      },
+      "minecraft:collision_box": {
+        "origin": [-8, 0, -8],
+        "size": [16, 2, 16]
+      }
+    }
+  }
+}
