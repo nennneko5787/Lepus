@@ -8,6 +8,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nennneko5787.lepus.core.api.SpecImpl;
 import net.nennneko5787.lepus.core.format.ir.block.BlockPhysics;
+import net.nennneko5787.lepus.core.format.ir.block.BlockModels;
 import net.nennneko5787.lepus.core.format.text.DisplayNames;
 import net.nennneko5787.lepus.core.registry.BlockSlot;
 
@@ -50,11 +51,16 @@ public final class BoundBlocks {
      *
      * @param sound the Java sound group, resolved from what the pack declared. Per block rather than
      *              per state, because Bedrock declares it per block
+     * @param renderMethod the chunk layer this block's faces belong on, collapsed to one answer
+     *                     because a chunk layer is a property of the block and not of a face.
+     *                     SC-150 §5.4. OPAQUE for almost every block in every pack, and the two
+     *                     Bedrock methods Java cannot express are folded before they get here
      */
     public record Bound(String logicalId, List<BlockPhysics> byStateIndex,
             List<Appearance> appearanceByStateIndex,
             List<VoxelShape> collisionByStateIndex, List<VoxelShape> selectionByStateIndex,
-            net.minecraft.world.level.block.SoundType sound) {
+            net.minecraft.world.level.block.SoundType sound,
+            BlockModels.RenderMethod renderMethod) {
 
         public Bound {
             byStateIndex = List.copyOf(byStateIndex);
@@ -74,10 +80,25 @@ public final class BoundBlocks {
         public static Bound of(String logicalId, List<BlockPhysics> byStateIndex,
                 List<Appearance> appearances,
                 net.minecraft.world.level.block.SoundType sound) {
+            return of(logicalId, byStateIndex, appearances, sound,
+                    BlockModels.RenderMethod.OPAQUE);
+        }
+
+        /**
+         * The same, for a block whose materials say how it draws. SC-150 §5.4.
+         *
+         * <p>Separate from the four-argument form rather than a default on it, so a caller that has
+         * the materials in hand has to say what they resolved to. The overload exists for the tests
+         * and for a path that genuinely has no materials, and both say OPAQUE explicitly.
+         */
+        public static Bound of(String logicalId, List<BlockPhysics> byStateIndex,
+                List<Appearance> appearances,
+                net.minecraft.world.level.block.SoundType sound,
+                BlockModels.RenderMethod renderMethod) {
             return new Bound(logicalId, byStateIndex, appearances,
                     byStateIndex.stream().map(p -> BoundShapes.of(p.collision())).toList(),
                     byStateIndex.stream().map(p -> BoundShapes.of(p.selection())).toList(),
-                    sound);
+                    sound, renderMethod);
         }
 
         /**

@@ -19,8 +19,10 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.EmptyBlockGetter;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.nennneko5787.lepus.core.format.ir.block.BlockBox;
+import net.nennneko5787.lepus.core.format.ir.block.BlockModels;
 import net.nennneko5787.lepus.core.format.ir.block.BlockPhysics;
 import net.nennneko5787.lepus.core.registry.BlockSlot;
 import net.nennneko5787.lepus.core.registry.SlotPool;
@@ -225,5 +227,62 @@ class BlockPoolRegistrationTest {
         PoolBlock block = pool.block(slot).orElseThrow();
         assertNotNull(BuiltInRegistries.BLOCK.getKey(block));
         assertEquals(BlockPool.identifierOf(slot), BuiltInRegistries.BLOCK.getKey(block));
+    }
+
+    /**
+     * <b>The trophy's case, and the whole of it.</b> One bound block declaring
+     * {@code render_method: "alpha_test"} must produce exactly one entry mapping its pool block to
+     * a layer, because {@code ItemBlockRenderTypes.TYPE_BY_BLOCK} is keyed by BLOCK and one Bedrock
+     * block owns exactly one slot.
+     *
+     * <p>That the key is the right <em>kind</em> of thing is the whole reason the pool works here.
+     * If slots were shared between Bedrock blocks, or if a block could be reached by more than one,
+     * this map could not express the answer and the feature would need a second slot dimension.
+     */
+    @Test
+    void aBoundBlockThatAsksForAlphaAsksForItByPoolBlock() {
+        BlockSlot cutout = new BlockSlot(4, 2);
+        BlockSlot solid = new BlockSlot(4, 1);
+        PoolBlock cutoutBlock = pool.block(cutout).orElseThrow();
+        PoolBlock solidBlock = pool.block(solid).orElseThrow();
+        Map<BlockSlot, BoundBlocks.Bound> bindings = Map.of(
+                cutout, boundWithMethod(cutout, BlockModels.RenderMethod.ALPHA_TEST),
+                solid, boundWithMethod(solid, BlockModels.RenderMethod.OPAQUE));
+
+        Map<Block, BlockModels.RenderMethod> wanted = BlockRenderLayers.needed(bindings, pool);
+
+        assertEquals(1, wanted.size(), wanted.toString());
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST, wanted.get(cutoutBlock));
+        assertFalse(wanted.containsKey(solidBlock), "an opaque block must not ask for a layer");
+    }
+
+    /**
+     * <b>An unbound slot is not in the map.</b> It draws as the empty model and has no texture to be
+     * transparent about, and putting every pool block on CUTOUT would cost the atlas and the mesher
+     * for nothing at all.
+     */
+    @Test
+    void anUnboundSlotAsksForNothing() {
+        BlockSlot cutout = new BlockSlot(4, 2);
+        Map<BlockSlot, BoundBlocks.Bound> bindings =
+                Map.of(cutout, boundWithMethod(cutout, BlockModels.RenderMethod.ALPHA_TEST));
+
+        // Three of the four slots in this pool are unbound.
+        assertEquals(1, BlockRenderLayers.needed(bindings, pool).size());
+        assertEquals(1, BlockRenderLayers.transparentCount(bindings));
+        assertEquals(0, BlockRenderLayers.transparentCount(Map.of()));
+    }
+
+    /** A {@link BoundBlocks.Bound} that is default in every way except the method it asks for. */
+    private static BoundBlocks.Bound boundWithMethod(BlockSlot slot,
+            BlockModels.RenderMethod method) {
+        int states = 1 << slot.sizeClass();
+        java.util.List<BlockPhysics> physics = java.util.stream.IntStream.range(0, states)
+                .mapToObj(index -> physicsWithBoxes(BlockBox.FULL, BlockBox.FULL))
+                .toList();
+        java.util.List<BoundBlocks.Appearance> appearances = java.util.stream.IntStream
+                .range(0, states).mapToObj(index -> NO_APPEARANCE).toList();
+        return BoundBlocks.Bound.of("sc:" + slot, physics, appearances,
+                net.minecraft.world.level.block.SoundType.STONE, method);
     }
 }

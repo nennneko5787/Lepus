@@ -190,7 +190,13 @@ public final class BlockBinding {
                             states.stream().map(BlockPhysics::of).toList(),
                             appearances,
                             LEGACY_INDEX.soundFor(identifier).map(BoundSounds::of)
-                                    .orElse(net.minecraft.world.level.block.SoundType.STONE)));
+                                    .orElse(net.minecraft.world.level.block.SoundType.STONE),
+                            // STATE ZERO, and that is not a shortcut. A chunk layer is chosen per
+                            // BLOCK, so a block whose states disagree cannot be drawn two ways and
+                            // SC-150 5.4's collapse is what decides; taking it from the first state
+                            // would make the answer depend on which state happened to sort first.
+                            // SC-150 section 5.4.
+                            BlockModels.layerOf(materialsOf(identifier, states.get(0)))));
                 }));
         // Items carry their own identifiers and therefore their own logical ids, and BOTH sets have
         // to reach the lang files: names were localising for blocks and not for items because this
@@ -623,6 +629,24 @@ public final class BlockBinding {
     }
 
     /**
+     * A block's materials, from the component or from the legacy table. SC-150 §4.1.
+     *
+     * <p>{@code material_instances} first, then the resource pack's {@code blocks.json}. A block
+     * from the 1.13-era format has no materials at all and keeps its texture there; reading only the
+     * modern component leaves it with the missing texture and nothing in its own file to explain why.
+     *
+     * <p><b>Shared with the render layer on purpose.</b> A block's texture and its
+     * {@code render_method} are stated in the same objects, so resolving them twice is how they
+     * come to disagree - which is exactly the bug SC-150 §5.4 records, where the picture was fixed
+     * by one pass and the layer was not read at all.
+     */
+    private static BlockModels.Materials materialsOf(BedrockId block,
+            Map<BedrockId, JsonValue> components) {
+        BlockModels.Materials declared = BlockModels.materialsOf(components);
+        return declared.isEmpty() ? LEGACY_INDEX.materialsFor(block).orElse(declared) : declared;
+    }
+
+    /**
      * How one state looks: its model, and the textures that model names. SC-150 §5.
      *
      * <p>Path A is attempted first and every way it can fail lands in the same place — a unit cube
@@ -633,13 +657,7 @@ public final class BlockBinding {
      */
     private static BoundBlocks.Appearance appearanceOf(BedrockId block,
             Map<BedrockId, JsonValue> components, BlockSlot slot, int index) {
-        // material_instances first, then the resource pack's blocks.json. A block from the 1.13-era
-        // format has no materials at all and keeps its texture there; reading only the modern
-        // component leaves it with the missing texture and nothing in its own file to explain why.
-        BlockModels.Materials declared = BlockModels.materialsOf(components);
-        BlockModels.Materials materials = declared.isEmpty()
-                ? LEGACY_INDEX.materialsFor(block).orElse(declared)
-                : declared;
+        BlockModels.Materials materials = materialsOf(block, components);
         Optional<String> wanted = BlockModels.geometryOf(components);
         Optional<GeometryIr> geometry = wanted.map(GEOMETRIES::get);
 
