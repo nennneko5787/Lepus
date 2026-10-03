@@ -436,6 +436,33 @@ disappears, and a face drawn that could have been culled costs one quad.
 cutout with culling, `blend` → translucent, `double_sided` → solid without culling. Imperfect;
 `face_dimming`, `ambient_occlusion` and `tint_method` need their own treatment.
 
+**NOT IMPLEMENTED, and it is the cause of the one corrupted texture this project has chased hardest.**
+`render_method` occurs **zero** times in `src/` and in `core/`. Every block therefore draws on the
+pipeline a plain block gets, and a block that declares transparency gets an opaque draw. The chain is
+verified end to end, and every link of it was read rather than reasoned:
+
+| | evidence |
+|---|---|
+| the pack declares it | a real trophy, `blocks/kivotos/trophy/1.binah_trophy.json`: `"render_method": "alpha_test"` |
+| its texture needs it | the same block's `binah_trophy.png` is PNG colour type 6 — RGBA, so it has transparent texels to lose |
+| we drop it | `BlockModels.Materials` carries a texture key and nothing else; `grep render_method src/ core/` is empty |
+| alpha is discarded by a **define**, not by the shader | both `shaders/core/terrain.fsh` and `shaders/core/block.fsh` gate on `#ifdef ALPHA_CUTOUT` → `discard`. Neither shader discards on its own |
+| so it is the pipeline that matters, and 1.21.11 has a dedicated one | `CoreShaders` (bytecode, 1.21.11) builds **`pipeline/solid_block`** with **no** `ALPHA_CUTOUT` and a separate **`pipeline/cutout_block`** with `ALPHA_CUTOUT = 0.5f`. Same split for `solid_terrain`/`cutout_terrain` |
+| entities are split the same way | `pipeline/entity_solid` carries no define; `entity_cutout`, `entity_cutout_no_cull` and `entity_cutout_no_cull_z_offset` all carry it |
+
+**The symptom this produces is a picture, not a hole.** A halo is mostly transparent texels, drawn
+with no alpha test, so the transparent parts render as opaque — black or the fog colour, in the
+shape of a halo. **And the shape is recognisable, which is what makes it read as a corrupt texture
+rather than as a missing block**: the trophy's body is opaque anyway, so it is unaffected, and the
+halo is the only part that changes. The same block held in the hand is correct, because that path
+runs on `entity_cutout_no_cull` — the define is present there. **That asymmetry is the signature**,
+and it is why the cause is a render-type decision rather than a UV or a geometry one.
+
+The session this came from first blamed the geometry (§5.3.1) and then the UV (§5.3.2); both were
+checked and both are innocent for this symptom, and §5.3.1's own rule was written on a symptom its
+reporter later withdrew. **A rule, a UV table and a shader read all pointed away from the file that
+was actually named in the pack's own JSON.**
+
 A face names a **material instance**, not a texture: `material_instances` maps the instance name to
 a texture key, `terrain_texture.json` maps that to a path, and the pack's VFS maps that to bytes
 (§4.1's chain, already built). A face naming no instance uses `*`. Every instance a model actually

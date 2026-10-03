@@ -164,13 +164,26 @@ entries:
       tint_method: missing
       isotropic: missing
     fidelity: >-
-      Only the texture is read. Every block draws on the same render layer whatever its
-      render_method says, so a block declaring alpha_test or blend is opaque: a texture with
-      transparent pixels shows black where it should show through, and one with partial alpha shows
-      none of it. That is the next thing to fix in this entry and it is independent of geometry.
+      Only the texture is read. Every block draws on the pipeline a plain block gets, so a block
+      declaring alpha_test or blend is opaque: a texture with transparent pixels shows black where it
+      should show through, and one with partial alpha shows none of it. That is the next thing to fix
+      in this entry and it is independent of geometry.
 
       A face naming an instance the block does not declare falls back to `*` rather than losing its
       texture, which is one typo costing nothing.
+
+      THE CAUSE IS NOW ESTABLISHED rather than described, and it is worth having in one place
+      because this symptom was chased into the wrong subsystem twice. `render_method` occurs zero
+      times in `src/` and in `core/`. A real trophy declares `"render_method": "alpha_test"` and
+      ships an RGBA texture, and alpha is discarded by a shader DEFINE and not by the shader: both
+      `terrain.fsh` and `block.fsh` gate `discard` on `#ifdef ALPHA_CUTOUT`. In 1.21.11
+      `CoreShaders` builds `pipeline/solid_block` with no such define and a separate
+      `pipeline/cutout_block` with `ALPHA_CUTOUT = 0.5f`, and the entity pipelines split the same
+      way. A transparent halo therefore renders as an opaque one - a wrong picture in a recognisable
+      shape, not a missing block - while the same block held in the hand is correct, because that
+      path runs on `entity_cutout_no_cull`. That asymmetry is the signature, and it is why the cause
+      is a render-type decision and not a UV or a geometry one; the geometry rule in the same
+      section was written against a symptom its reporter later withdrew.
 
   - id: minecraft:map_color
     status: stub
