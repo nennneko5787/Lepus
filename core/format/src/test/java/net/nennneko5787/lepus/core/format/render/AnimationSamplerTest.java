@@ -284,4 +284,158 @@ class AnimationSamplerTest {
                 }""");
         assertPoint(sampler.at(0.0f, NO_WORLD).get("bag").transform(5, 5, 5), 0, 0, 0);
     }
+
+    /**
+     * <b>Past its length, the three kinds of {@code loop} do three different things.</b> SC-180 §4.1.
+     *
+     * <p>The middle row is the one this build got wrong for most of this feature's life, and the
+     * corpus could not see it: {@code AnimationIr} carried a boolean, {@code "hold_on_last_frame"} was
+     * read as a boolean it is not, and so a plain non-looping animation and a holding one were the
+     * same animation. **A non-looping animation therefore held its last keyframe forever** — which no
+     * frame ever showed, because the ledger's own note says why: no animation in the surveyed corpus
+     * is plainly non-looping, so no pose was ever sampled past an end.
+     *
+     * <p>Asserted through {@link AnimationSampler#accumulate} and not through
+     * {@link AnimationSampler#at}, because {@code at} reads the channels directly and so never asks
+     * whether the animation still has anything to say. A frame asks, and that is the path this has to
+     * hold on.
+     */
+    @Test
+    void pastItsLengthALoopWrapsAHoldingAnimationHoldsAndAPlainOneHasEnded() {
+        String frames = """
+                 "bones": { "head": { "position": {
+                   "0.0": [0, 0, 0], "1.0": [0, 10, 0], "2.0": [0, 20, 0] } } }""";
+
+        // 2.5s into a 2s loop is 0.5s in, which is halfway up the first segment: 0 at t=0 and 10 at
+        // t=1, so 5. A loop that answered 10 or 20 would be clamping, not wrapping.
+        assertEquals(5.0f, headY(looping(frames)), 0.01f, "a loop wraps");
+
+        // The same instant with hold_on_last_frame, which keeps the last keyframe.
+        assertEquals(20.0f, headY(holding(frames)), 0.01f,
+                "hold_on_last_frame keeps contributing the last keyframe past the end");
+
+        // And the same instant with neither, which is the row that was never implemented: it has ENDED,
+        // and ending removes the pose rather than freezing it.
+        assertTrue(finished(once(frames)),
+                "a plain non-looping animation past its length contributes nothing at all");
+    }
+
+    /** {@code loop: true} with a length, so it is a loop rather than a zero-length one. */
+    private static AnimationSampler looping(String frames) {
+        return sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "loop": true, "animation_length": 2, %s }
+                  }
+                }""".formatted(frames));
+    }
+
+    private static AnimationSampler holding(String frames) {
+        return sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "loop": "hold_on_last_frame", "animation_length": 2, %s }
+                  }
+                }""".formatted(frames));
+    }
+
+    private static AnimationSampler once(String frames) {
+        return sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "animation_length": 2, %s }
+                  }
+                }""".formatted(frames));
+    }
+
+    /** The composed Y of {@code head}, through the path a frame takes. */
+    private static float headY(AnimationSampler sampler) {
+        return contributed(sampler, 2.5f).get("head").transform(0, 0, 0)[1];
+    }
+
+    /** True when the animation added nothing for {@code head} at that moment. */
+    private static boolean finished(AnimationSampler sampler) {
+        return !contributed(sampler, 2.5f).containsKey("head");
+    }
+
+    /**
+     * The bones an animation actually contributed at a moment.
+     *
+     * <p>Two {@code accumulate} calls because {@link Playback#timeOf} starts a clock on the first
+     * frame an animation is asked for and answers zero for it — so one call would sample every
+     * animation at t=0 whatever time was asked for, which is precisely the sort of test that passes
+     * for the wrong reason.
+     */
+    private static Map<String, Mat4f> contributed(AnimationSampler sampler, float seconds) {
+        Playback playback = new Playback();
+        sampler.accumulate(playback, NO_WORLD, 1.0f, new java.util.LinkedHashMap<>());
+        playback.advanceTo(seconds);
+        Map<String, AnimationSampler.Channels> channels = new java.util.LinkedHashMap<>();
+        sampler.accumulate(playback, NO_WORLD, 1.0f, channels);
+        Map<String, Mat4f> out = new java.util.LinkedHashMap<>();
+        channels.forEach((bone, accumulated) -> out.put(bone, accumulated.transform()));
+        return out;
+    }
+
+    /**
+     * <b>Whether an animation can draw at all is a different fact from what blend it was
+     * given.</b> SC-180 §4.1.
+     *
+     * <p>Both fixtures are constants only, so neither has an {@code animation_length} and both have a
+     * length of zero — a pack that writes no keyframes has a last keyframe at t=0, which is the whole
+     * of the corpus's first-person animations. A zero-length <b>loop</b> restarts on the frame it
+     * starts and therefore ends on every frame, contributing nothing at any blend. That much is
+     * settled, and it is measured: the corpus's two characters are conditioned identically and only the
+     * one carrying {@code loop: true} goes unposed.
+     *
+     * <p><b>The zero-length {@code hold_on_last_frame} below is NOT settled, and this test asserts the
+     * behaviour rather than the truth.</b> "Holds the last keyframe" and "finished at t=0" are the same
+     * instant; Mojang's own resource pack never writes the field, so there is nothing to read it off;
+     * and the corpus's single occurrence is the animation two readings of a reported bug both depend
+     * on. {@code holdsWithoutLength} is the decision, and it is a one-line change once a frame exists.
+     * **If that frame shows the marker moving, this assertion is what has to flip.**
+     */
+    @Test
+    void aZeroLengthLoopDrawsNothingAndTheHeldFrameCurrentlyDoes() {
+        assertFalse(sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "loop": true,
+                                      "bones": { "head": { "rotation": [0, 180, 0] } } }
+                  }
+                }""").contributes(),
+                "a zero-length loop ends on every frame and draws nothing at any blend");
+
+        assertTrue(sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "loop": "hold_on_last_frame",
+                                      "bones": { "head": { "rotation": [0, 180, 0] } } }
+                  }
+                }""").contributes(),
+                "UNMEASURED: a zero-length hold_on_last_frame currently holds. Flip this if the "
+                        + "Bedrock frame shows the marker standing still.");
+    }
+
+    /**
+     * <b>A length is what makes a loop a loop.</b> The same {@code loop: true} with a length draws,
+     * so the rule above is about the pair and not about {@code loop} on its own — which is the
+     * reading that would silently disable every looping animation in every pack.
+     */
+    @Test
+    void aLoopWithALengthIsNotFinishedOnEveryFrame() {
+        assertTrue(sampler("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { "loop": true, "animation_length": 2,
+                                      "bones": { "head": { "rotation": [0, 90, 0] } } }
+                  }
+                }""").contributes());
+    }
 }

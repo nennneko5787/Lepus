@@ -57,7 +57,7 @@ class AnimationFilesTest {
                 }""").get(0);
 
         assertEquals("animation.shiroko_onbu.idle", idle.name());
-        assertTrue(idle.loop());
+        assertEquals(AnimationIr.Loop.LOOP, idle.loop());
         assertEquals(Optional.of(2.0f), idle.length());
 
         // A constant is a timeline of one, so the sampler has one shape to handle rather than two.
@@ -90,6 +90,43 @@ class AnimationFilesTest {
         assertTrue(hidden.isNumeric());
         assertEquals(Optional.of(0.0f), hidden.post().get(0).number());
         assertEquals(Optional.of(0.0f), hidden.post().get(2).number());
+    }
+
+    /**
+     * <b>Bedrock's {@code loop} is a boolean or a string, and the string is a third thing.</b>
+     * SC-180 §4.1.
+     *
+     * <p>It used to be read as a boolean, which {@code "hold_on_last_frame"} is not — so it arrived as
+     * false, became indistinguishable from a plain non-looping animation, and every non-looping
+     * animation in every pack held its last keyframe indefinitely. That is the whole of the
+     * {@code hold_on_last_frame: missing} the ledger carried.
+     *
+     * <p>All four cases are asserted, including the absent one: an animation that does not mention
+     * {@code loop} plays once, and a reader should not have to take that on trust because it happens
+     * to agree with a written {@code false}.
+     */
+    @Test
+    void everySpellingOfLoopIsReadAsTheThingItIs() {
+        assertEquals(AnimationIr.Loop.LOOP, loopOf("\"loop\": true"));
+        assertEquals(AnimationIr.Loop.NONE, loopOf("\"loop\": false"));
+        assertEquals(AnimationIr.Loop.HOLD_ON_LAST_FRAME,
+                loopOf("\"loop\": \"hold_on_last_frame\""));
+        assertEquals(AnimationIr.Loop.NONE, loopOf("\"animation_length\": 2"));
+        // Mojang's own capitalisation is not a reason to lose the field.
+        assertEquals(AnimationIr.Loop.HOLD_ON_LAST_FRAME,
+                loopOf("\"loop\": \"HOLD_ON_LAST_FRAME\""));
+        // And a misspelling costs that animation its ending rather than the file.
+        assertEquals(AnimationIr.Loop.NONE, loopOf("\"loop\": \"hold_on_lastframe\""));
+    }
+
+    private static AnimationIr.Loop loopOf(String loopMember) {
+        return parse("""
+                {
+                  "format_version": "1.8.0",
+                  "animations": {
+                    "animation.x": { %s, "bones": { "root": { "position": [0, 0, 0] } } }
+                  }
+                }""".formatted(loopMember)).get(0).loop();
     }
 
     /**

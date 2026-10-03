@@ -67,17 +67,28 @@ entries:
     fields:
       "true": ok
       "false": ok
-      hold_on_last_frame: missing
+      hold_on_last_frame: ok
     fidelity: >-
       A looping animation wraps against `animation_length`; one that does not hold its last frame.
       The clock it wraps against is the HOLDER's, starting the first frame the animation's blend is
       non-zero - SC-180 section 4.1.1, and the reason a six-hundred-second animation in the surveyed
       corpus used to be at an arbitrary phase.
 
-      `hold_on_last_frame` collapses to `loop: false` in the IR, so a plain non-looping animation
-      cannot be told from a holding one. Bedrock ends both, but removes the pose of one and keeps
-      the other. No animation in the surveyed corpus is plainly non-looping, so nothing can see the
-      difference yet.
+      THREE KINDS, not two, and the third was missing for most of this feature's life. Past
+      `animation_length`, `loop: true` wraps and never ends, `loop: false` has ENDED and contributes
+      nothing, and `hold_on_last_frame` keeps contributing the last keyframe. The IR carried a boolean
+      and read the string as a boolean it is not, so the last two were the same animation and every
+      non-looping animation in every pack held its last keyframe indefinitely. That is a wider bug than
+      the corpus could see, and the reason nothing caught it is in the sentence this note used to end
+      with: no animation in the surveyed corpus is plainly non-looping, so no frame was ever sampled
+      past an end. `animation.schema.json` declared all three names from the start; only the code
+      disagreed.
+
+      AT A LENGTH OF ZERO the third kind is still open. "Holds the last keyframe" and "finished at
+      t=0" are the same instant, Mojang's own resource pack never writes the field, and the corpus's
+      one occurrence is the animation two readings of the corpus's first-person bug both depend on -
+      see SC-180 section 4.1, which sets out those two readings and the one frame that separates them.
+      It currently holds, and `AnimationSampler.holdsWithoutLength` is the whole of the decision.
 
       `loop_delay` and `start_delay` are not read.
   - id: animation/loop_delay

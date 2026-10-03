@@ -6,6 +6,7 @@ import java.util.NavigableMap;
 import java.util.Optional;
 import net.nennneko5787.lepus.core.api.SpecImpl;
 import net.nennneko5787.lepus.core.format.ir.animation.AnimationIr;
+import net.nennneko5787.lepus.core.format.ir.animation.AnimationIr.Loop;
 import net.nennneko5787.lepus.core.molang.MolangContext;
 import net.nennneko5787.lepus.core.molang.MolangExpr;
 
@@ -110,7 +111,7 @@ public final class AnimationSampler implements Playable {
         // not the same as a time of zero: the second would have every animation of every pack
         // already advancing before anything asked for it. SC-180 §4.1.1.
         float elapsed = playback.timeOf(this, weighted != 0.0f);
-        if (elapsed == Playback.NOT_STARTED || finishedAndGone() || weighted == 0.0f) {
+        if (elapsed == Playback.NOT_STARTED || finishedAndGone(elapsed) || weighted == 0.0f) {
             return;
         }
         float time = timeIn(elapsed);
@@ -245,43 +246,99 @@ public final class AnimationSampler implements Playable {
      * needs none, and wrapping against a length of zero would divide by it.
      */
     /**
-     * An animation that has already ended and contributes nothing. SC-180 §4.1.
+     * What this animation does once it reaches the end of its length. SC-180 §4.1.
      *
      * <p><b>A pack that writes only constants has no keyframes, so its length is zero</b> — Mojang:
      * "a single key frame is created at t=0.0 and all channel data is stored within that key frame",
      * and `animation_length` defaults to "time of last key frame". Such an animation finishes the
-     * instant it starts. What happens next is the `loop` field's business: `true` restarts it, which
-     * for a zero-length animation is an animation that ends on every frame; `hold_on_last_frame`
-     * keeps the final pose forever.
+     * instant it starts, and what happens next is the {@code loop} field's business.
      *
-     * <p><b>This is the whole difference between the two characters of the corpus.</b> Both hang a
-     * first-person animation off the same condition and both conditions read true; one carries
-     * `loop: "hold_on_last_frame"` — the only occurrence in thirty-two files — and the other
-     * `loop: true`. On the Bedrock client the first character IS posed by hers (at the screen's
-     * edge, turned side-on, scaled up: her animation's numbers exactly) and the second is not (she
-     * would spin half a turn, and does not). Every other candidate was eliminated first: the hand
-     * she is held in (tested both), `c.item_slot` (vanilla's shield uses it), `c.is_first_person`,
-     * and the composition rule itself (documented as additive).
+     * <p><b>A zero-length LOOP is the settled case.</b> It restarts on the frame it starts, so it
+     * ends on every frame and contributes nothing. That was measured on the Bedrock client: the
+     * corpus has a pair of first-person animations conditioned identically, one {@code loop: true}
+     * and one {@code "hold_on_last_frame"}, and only the first is posed by neither client. Every
+     * other candidate was eliminated before that was accepted — the hand it is held in (tested both),
+     * {@code c.item_slot} (vanilla's shield uses it), {@code c.is_first_person}, and the composition
+     * rule itself (documented as additive).
      *
-     * <p>`TODO(SC-180)`: the IR collapses `hold_on_last_frame` to `loop: false`, so this cannot yet
-     * tell it from a plain non-looping animation — which Bedrock would also end, but by removing its
-     * pose rather than holding it. The corpus has no such animation, so nothing here can see the
-     * difference; a tri-state belongs in `AnimationIr` before one does.
+     * <p><b>A zero-length HOLD is NOT settled, and is the one open question in this file.</b> The last
+     * keyframe and the instant it finished are the same moment, Mojang's own resource pack never
+     * writes the field, and the corpus's single occurrence is the animation whose behaviour is the
+     * open question. Two readings — hold the last keyframe forever, or recognise that a zero-length
+     * animation has ended whatever it meant and drop the pose — and they differ on screen by a whole
+     * body. {@link #holdsWithoutLength} is the whole of it, and it is one predicate so that answering
+     * it is one edit.
      */
-    private boolean finishedAndGone() {
-        return animation.loop() && animation.length().orElse(0.0f) <= 0.0f;
+    private boolean finishedAndGone(float seconds) {
+        float length = animation.length().orElse(0.0f);
+        if (length > 0.0f) {
+            // Past its length a LOOP wraps, a HOLD keeps its last keyframe, and a NONE has ended.
+            return animation.loop() == Loop.NONE && seconds >= length;
+        }
+        return switch (animation.loop()) {
+            case LOOP -> true;
+            case NONE -> true;
+            case HOLD_ON_LAST_FRAME -> !holdsWithoutLength();
+        };
     }
 
+    /**
+     * Whether a zero-length {@code "hold_on_last_frame"} still has a pose. SC-180 §4.1.
+     *
+     * <p><b>UNMEASURED, and this is the one place in the sampler that rests on a reading rather than
+     * a reference.</b> It currently holds, which is the behaviour this file had before the field
+     * became a tri-state, and which the ledger for most of this feature's life has recorded as
+     * {@code hold_on_last_frame: missing}.
+     *
+     * <p>What would settle it is one Bedrock frame: a bone with a marker, turned by a
+     * zero-length {@code hold_on_last_frame} animation, beside a marker the animation does not touch.
+     * If the first marker moves, holding is right. If it does not, a zero-length animation has ended
+     * and ending removes the pose — which is the reading the ledger states and the one that decides
+     * whether a piggybacking character's own first-person animation reaches her at all.
+     *
+     * <p>It is separated from the rest on purpose. Everything else in this class is arithmetic or
+     * measurement; this is a question, and a question that has cost this project a fitted constant
+     * before wants its own address.
+     */
+    private boolean holdsWithoutLength() {
+        return true;
+    }
+
+    /**
+     * Whether this animation can contribute anything at all, whatever blend it is given.
+     *
+     * <p><b>Separate from the blend on purpose.</b> An entry's condition firing says the pack asked
+     * for it; this says the pack got it. A zero-length loop ends on every frame whatever the blend,
+     * so a report of blends alone prints the same number for the one that draws and the one that
+     * does not, and a pair of animations differing only in one word becomes indistinguishable in it.
+     */
+    public boolean contributes() {
+        float length = animation.length().orElse(0.0f);
+        if (length > 0.0f) {
+            return true;
+        }
+        // No length at all, so the question is the one the predicate answers. Time plays no part:
+        // there is no later moment to be past.
+        return animation.loop() == Loop.HOLD_ON_LAST_FRAME && holdsWithoutLength();
+    }
+
+    /**
+     * The animation's own time, and what it does once past the end.
+     *
+     * <p>Only reached for an animation that {@link #finishedAndGone()} says has something to say, so
+     * a NONE past its length and a zero-length loop never arrive here.
+     */
     private float timeIn(float seconds) {
         float length = animation.length().orElse(0.0f);
         if (length <= 0.0f) {
             return seconds;
         }
-        if (!animation.loop()) {
-            return Math.min(seconds, length);
+        if (animation.loop() == Loop.LOOP) {
+            float wrapped = seconds % length;
+            return wrapped < 0.0f ? wrapped + length : wrapped;
         }
-        float wrapped = seconds % length;
-        return wrapped < 0.0f ? wrapped + length : wrapped;
+        // A HOLD, and the only non-looping kind that reaches this point.
+        return Math.min(seconds, length);
     }
 
     /**

@@ -53,10 +53,7 @@ public final class AnimationFiles {
         animations.get().members().forEach((name, value) -> value.asObject().ifPresent(body ->
                 out.add(new AnimationIr(
                         name,
-                        // Bedrock also writes "hold_on_last_frame" here, which is neither true nor
-                        // false in the sense this field means. Read as NOT looping, and recorded in
-                        // the ledger rather than silently conflated with either.
-                        body.get("loop").flatMap(JsonValue::asBool).orElse(false),
+                        loop(body.get("loop").orElse(null)),
                         body.get("animation_length").flatMap(JsonValue::asNumber)
                                 .map(number -> number.floatValue()),
                         // `blend_weight` is a number OR Molang - "can be an expression" - and a
@@ -67,6 +64,33 @@ public final class AnimationFiles {
                         bones(body.getObject("bones").orElse(JsonObject.EMPTY), at.at(name)),
                         at.provenance()))));
         return Optional.of(out);
+    }
+
+    /**
+     * Bedrock's mixed boolean/string {@code loop}, read as the three things it can mean.
+     *
+     * <p><b>Both spellings are read, and the string one used to be dropped on the floor.</b> It was
+     * read as a boolean, which {@code "hold_on_last_frame"} is not, so it arrived as false and became
+     * indistinguishable from a plain non-looping animation — the collapse the coverage ledger has
+     * been carrying as {@code hold_on_last_frame: missing} for most of this feature's life, and the
+     * reason every non-looping animation held its last keyframe forever.
+     *
+     * <p>Absent, and anything unrecognised, is {@link Loop#NONE}: an animation that did not ask to
+     * repeat or to hold is one that plays once. A misspelling costs that animation its ending rather
+     * than the file, which is the trade constitution rule 5 asks for.
+     */
+    private static AnimationIr.Loop loop(JsonValue value) {
+        if (value == null) {
+            return AnimationIr.Loop.NONE;
+        }
+        Optional<Boolean> flag = value.asBool();
+        if (flag.isPresent()) {
+            return flag.get() ? AnimationIr.Loop.LOOP : AnimationIr.Loop.NONE;
+        }
+        return value.asString()
+                .filter(text -> text.equalsIgnoreCase("hold_on_last_frame"))
+                .map(text -> AnimationIr.Loop.HOLD_ON_LAST_FRAME)
+                .orElse(AnimationIr.Loop.NONE);
     }
 
     private static Map<String, AnimationIr.Bone> bones(JsonObject bones, ParseContext ctx) {

@@ -18,9 +18,7 @@ import net.nennneko5787.lepus.core.format.value.Provenance;
  * item display transform instead would be fighting this file.
  *
  * @param name        {@code animation.<name>}, as the pack spells it
- * @param loop        whether it repeats. Bedrock also has {@code "hold_on_last_frame"}, kept as
- *                    false here with the distinction recorded in the coverage ledger rather than
- *                    guessed at
+ * @param loop        what it does when it reaches its end, which is three things and not two
  * @param length      {@code animation_length} in seconds, absent when the pack states none
  * @param blendWeight {@code blend_weight}, absent when the pack states none, which Bedrock reads as
  *                    one. "How much this animation is blended with the others. 0.0 = off. 1.0 =
@@ -31,7 +29,7 @@ import net.nennneko5787.lepus.core.format.value.Provenance;
 @SpecImpl("SC-180#animation/bones")
 public record AnimationIr(
         String name,
-        boolean loop,
+        Loop loop,
         Optional<Float> length,
         Optional<Component> blendWeight,
         Map<String, Bone> bones,
@@ -39,6 +37,53 @@ public record AnimationIr(
 
     public AnimationIr {
         bones = Collections.unmodifiableMap(new java.util.LinkedHashMap<>(bones));
+    }
+
+    /**
+     * What an animation does once it reaches the end of its length. SC-180 §4.1.
+     *
+     * <p><b>Three, and the third is why this is an enum.</b> Bedrock's field is a boolean or the
+     * string {@code "hold_on_last_frame"}, and the two booleans are not the same thing:
+     *
+     * <table>
+     *   <caption>past {@code animation_length}</caption>
+     *   <tr><th></th><th>contributes</th></tr>
+     *   <tr><td>{@link #LOOP}</td><td>wraps, and never ends</td></tr>
+     *   <tr><td>{@link #NONE}</td><td><b>nothing</b> — it ended, and ending removes the pose</td></tr>
+     *   <tr><td>{@link #HOLD_ON_LAST_FRAME}</td><td>the last keyframe, forever</td></tr>
+     * </table>
+     *
+     * <p>A boolean cannot say that middle row, and the IR carried one for most of this feature's
+     * life, so {@link #NONE} and {@link #HOLD_ON_LAST_FRAME} were the same animation and every
+     * non-looping animation in every pack held its last keyframe indefinitely. {@code
+     * animation.schema.json} has declared all three names from the start; only the code disagreed.
+     *
+     * <p><b>Names are the schema's, not mine</b> — {@code none}, {@code loop},
+     * {@code hold_on_last_frame} — so the IR and the schema cannot drift apart in their vocabulary.
+     */
+    public enum Loop {
+
+        /** {@code "loop": false}. Ends at its length and contributes nothing afterwards. */
+        NONE,
+
+        /** {@code "loop": true}. Wraps against the length, so it never ends. */
+        LOOP,
+
+        /**
+         * {@code "loop": "hold_on_last_frame"}. Ends at its length and keeps contributing the last
+         * keyframe.
+         *
+         * <p><b>And at a length of ZERO this is the one open question in the sampler.</b> "Holds the
+         * last frame" and "finished at t=0" are the same instant, and Mojang's own files never write
+         * this field — it appears nowhere in the vanilla resource pack, so there is no reference to
+         * read it off. The two readings are: the last keyframe is held forever, or a zero-length
+         * animation has ended whatever it meant to do and ending removes the pose.
+         *
+         * <p>Both are defensible and they differ on screen by a whole body. {@code
+         * AnimationSampler#holdsWithoutLength} is where the decision lives, alone, and the ledger
+         * records which way it currently goes and why.
+         */
+        HOLD_ON_LAST_FRAME
     }
 
     /**

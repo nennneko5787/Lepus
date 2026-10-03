@@ -633,8 +633,55 @@ A conjunction whose right half works and whose whole is false has a false left h
 from Mojang's list of 315 queries. **The pack's author wrote a first-person pose that has never been
 drawn.** §4.4 records what follows for this build.
 
-That also retires the `loop` question this section carried: `hold_on_last_frame` occurring exactly
-once in thirty-two files, on that animation, is a coincidence of authorship and not a mechanism.
+That also retires the `loop` question this section carried: `hold_on_last_frame` occurring exactly once
+in thirty-two files, on that animation, is a coincidence of authorship and not a mechanism.
+
+**The premise that conclusion rests on is wrong, and the conclusion may still be right.** `c.item_slot`
+is not readable against Mojang's query list because **that list contains no `c.*` entry at all** — it
+is 315 `query.*` entries and nothing else (`spec/coverage/_index.yaml` pins it as
+`mojang-molang-queries.json`, and the file's own shape is the evidence). An absence there is not
+evidence about a `context` value, and the wiki's own statement — that `c.item_slot` is documented in
+exactly one place, inside a bone's `binding` — is the actual reference. So the inference from "not in
+the list" to "reads zero in `pre_animation`" is not available, and the paragraph above should be read
+as resting on the wiki plus a frame, not on the list.
+
+**Two explanations remain for the same capture, and they are indistinguishable in a frame:**
+
+| | the pack's first-person animation | why her head faces the viewer |
+|---|---|---|
+| **(α)** | **never fires**, because `c.item_slot` is zero in `pre_animation` scope | nothing from it; the wearer's half turn alone |
+| **(β)** | fires, and a zero-length `hold_on_last_frame` contributes nothing | the same, by the same arithmetic |
+
+Both land on the same picture, which is why the frame above cannot separate them. **One Bedrock frame
+separates them**: a bone with a marker turned by a zero-length `hold_on_last_frame`, beside a marker
+the animation does not touch. The marker moving falsifies (β) and leaves (α); the marker still
+falsifies (α) and leaves (β). **Do not settle this by preferring the paragraph above**, which is
+recorded as a conclusion with a premise that has since been shown false.
+
+#### What an animation does when it ends
+
+Independent of which explanation above is right, `loop` is three things and not two, and the IR now
+says so. Past `animation_length`:
+
+| `loop` | contributes |
+|---|---|
+| `true` | wraps, and never ends |
+| `false` | **nothing** — it ended, and ending removes the pose |
+| `"hold_on_last_frame"` | the last keyframe, forever |
+
+**The middle row was never implemented.** `AnimationIr` carried a boolean for most of this feature's
+life, so `false` and `"hold_on_last_frame"` were the same animation and **every non-looping animation
+in every pack held its last keyframe indefinitely** — which is a wider bug than the corpus could see,
+because no corpus animation is long enough to be sampled past its end. `animation.schema.json` has
+declared all three names since the beginning; only the code disagreed, and only the code.
+
+**At a length of ZERO the third row is still open**, and it is the only question left in the sampler.
+"Holds the last keyframe" and "finished at t=0" are the same instant; Mojang's own resource pack never
+writes the field, so there is no reference to read it off; and the corpus's one occurrence is the
+animation (β) is about. `AnimationSampler.holdsWithoutLength` is the whole of it, and it currently
+holds. **It is a predicate rather than a constant on purpose**: everything else in that class is
+arithmetic or measurement, and a question that has already cost this project a fitted constant wants
+its own address.
 
 `TODO(SC-180)`: the one thing this rule does not explain. In the Bedrock client a character's head
 follows the player's gaze in third person and does **not** in first person, and under this rule the
