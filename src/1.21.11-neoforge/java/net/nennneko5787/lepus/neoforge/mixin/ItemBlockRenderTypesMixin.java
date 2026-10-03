@@ -33,6 +33,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * One of them is a documented public call and one is a redirect, and only one of them should be
  * load-bearing for a mismatch to show up in.
  *
+ * <p><b>The handler is static and the compiler does not complain either way.</b> A non-static one
+ * compiles, passes {@code chiseledBuild}, and is still a valid-looking mixin; it is the runtime that
+ * refuses it, at the first chunk mesh, on a client. That is the whole argument for running this on
+ * a client rather than trusting the build.
+ *
  * <p><b>Version-bound, because the class is.</b> 1.21.11 has
  * {@code ItemBlockRenderTypes}; 26.2 does not — its layer comes from the sprite's transparency
  * instead ({@code BakedQuad.MaterialInfo.of} calls
@@ -43,8 +48,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ItemBlockRenderTypes.class)
 public abstract class ItemBlockRenderTypesMixin {
 
+    /**
+     * STATIC, and the first version of this was not — which crashed the client at the first chunk
+     * mesh, with {@code "non-static callback method ... targets a static method which is not
+     * supported"}. Mixin matches the handler's own modifiers against the target's: a static target
+     * needs a static handler, and {@code CallbackInfoReturnable} alone is not enough to say so. The
+     * target is static because {@code ItemBlockRenderTypes} is a bag of statics - it holds no
+     * instance to inject into, which is also why nothing about this mixin needs an {@code this}.
+     */
     @Inject(method = "getChunkRenderType", at = @At("HEAD"), cancellable = true)
-    private void lepus$honourDeclaredRenderMethod(BlockState state,
+    private static void lepus$honourDeclaredRenderMethod(BlockState state,
             CallbackInfoReturnable<ChunkSectionLayer> callback) {
         BlockLayerLookup.of(state.getBlock()).ifPresent(callback::setReturnValue);
     }
