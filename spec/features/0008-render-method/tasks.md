@@ -62,8 +62,15 @@
 - [x] coverage `render_method: missing → partial`。**OBSERVED と書いて、需要された** 3 つの
       未修正を列挙した（専用サーバー / 26.2 の逆方向 / 2 つの折り畳み）
 - [x] `./gradlew specAll` green（12/12）
-- [ ] **1.21.11-neoforge で同じものを置く** — mixin は**一度も実行されたことがない**。
-      Fabric の経路だけが観測済み
+- [x] **1.21.11-neoforge で同じものを置く** — **実測済み。** mixin は最初 client を
+      crash させた（static method に non-static handler。callback の型は正しく、**ハンドラ自身の
+      修飾子**が要る）。修正して再実行し、ハローが透けた
+- [x] **`chiseledBuild` green はこの mixin を証明しなかった**。class 名・method 名・descriptor・
+      config の class 存在、全部 static チェックで通った。有効なのは「最初の mesh を組むフレーム」
+      だけだった
+- [x] neoforge の dev run に **pack が無かった**ので `versions/1.21.11-fabric/run/lepus` を
+      コピーした（`run/` は gitignore 済み）。**新規ワールドには `active.json` が無いので
+      パックの有効化が必要** — 有効化しないまま置いても描かれない
 - [ ] **26.2 で置く** — 画素由来の予測が当たっているか。外れていたらバイトコード読みが
       間違っていたことになる
 

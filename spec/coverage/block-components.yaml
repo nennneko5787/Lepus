@@ -183,10 +183,12 @@ entries:
       out on the way, and the geometry rule in this same file had been written against a symptom
       its reporter later withdrew.
 
-      **OBSERVED FIXED, on a 1.21.11 Fabric client, with a real trophy placed in a world.** The
-      halo draws with its transparent pixels showing. That is the ONLY claim in this entry backed by
-      a frame, and it is why the field is `partial` rather than `ok` - `ok` would also be a claim
-      about the three cases below, and it is not a claim about any of them.
+      **OBSERVED FIXED, on 1.21.11, on BOTH loaders, with a real trophy placed in a world.** The
+      halo draws with its transparent pixels showing - on Fabric through
+      `BlockRenderLayerMap.putBlock`, and on NeoForge through a mixin that took two attempts to get
+      past a client. That is the only claim here backed by a frame, and it is why the field is
+      `partial` rather than `ok` - `ok` would also be a claim about the three cases below, and it
+      is not a claim about any of them.
 
       NOT FIXED, and each is a way this claim would be wrong:
 
