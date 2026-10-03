@@ -403,6 +403,20 @@ closely as Java allows.
 `active.json` records an ordered list of `{packUuid, version}`. Order is authoritative for SC-100 §5
 override precedence.
 
+**Installed is not active, and a world that has never been told otherwise uses none of it.** This was
+unspecified, and the first symptom of it was a report that a new world "only had four of the six
+packs on": it had the four somebody enabled from the in-game screen, and the other two had never
+been asked for. Two alternatives were considered and both are worse:
+
+| | why not |
+|---|---|
+| **enable every installed pack** | contradicts §8.1. A fresh world would try to bind every block of every installed pack at once, and pool exhaustion is the one thing in this document that needs a **restart** — so the default would be the default that breaks the promise the rest of this section exists to make. |
+| **copy the previous world's set** | makes a world's content depend on which world was opened last, which no user can predict and no test can assert. |
+
+The cost is one trip through the in-game screen. **This is about an absent file, not an unreadable
+one**: an `active.json` that exists and cannot be parsed is a different case, and it leaves the
+file alone rather than rewriting a user's set to empty — losing content is worse than not having any.
+
 Activation and deactivation take effect **immediately**, without a restart:
 
 | Step | What happens |
