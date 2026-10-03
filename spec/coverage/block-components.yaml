@@ -199,11 +199,18 @@ entries:
       read by `getChunkRenderType(BlockState)` - and one Bedrock block owns exactly one pool block,
       so the granularity matches without a second slot dimension. Fabric has a public
       `BlockRenderLayerMap.putBlock`; NeoForge has no API at all and needs one injection into that
-      same method. ON 26.2 NEITHER IS POSSIBLE: `ItemBlockRenderTypes` does not exist there and
-      Fabric API dropped `BlockRenderLayerMap` for it, because 26.2 derives the layer from the
-      SPRITE's transparency (`ChunkSectionLayer.byTransparency`) rather than from a per-block map.
-      A block declaring `alpha_test` on 26.2 is therefore still drawn opaque, and the fix belongs
-      to the sprite's metadata rather than to this mechanism.
+      same method. ON 26.2 THE LAYER IS DERIVED FROM THE PIXELS, not from the declaration, and the two
+      versions therefore fail in OPPOSITE directions. There is no `ItemBlockRenderTypes` there and
+      no `TYPE_BY_BLOCK` to write; `FaceBakery` hands the quad's own UV rectangle to
+      `SpriteContents.computeTransparency`, which scans the sprite's actual alpha inside it, and
+      `ChunkSectionLayer.byTransparency` maps translucent pixels to TRANSLUCENT and transparent ones
+      to CUTOUT. So a block declaring `alpha_test` with transparent texels draws on CUTOUT on 26.2
+      whether or not we do anything - the pack's declaration is not what puts it there, the RGBA
+      pixels are - and Fabric API dropped `BlockRenderLayerMap` because there is no longer a
+      producer side for it to call. What 26.2 gets WRONG is the reverse: a block declaring `opaque`
+      whose texture happens to contain alpha is drawn on CUTOUT anyway, because nothing consults the
+      declaration. That is the divergence, it is UNOBSERVED - every report about this halo came from
+      a 1.21.11 client - and it is read out of bytecode rather than off a frame.
 
   - id: minecraft:map_color
     status: stub

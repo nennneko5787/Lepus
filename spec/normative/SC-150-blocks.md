@@ -468,6 +468,28 @@ a texture key, `terrain_texture.json` maps that to a path, and the pack's VFS ma
 (§4.1's chain, already built). A face naming no instance uses `*`. Every instance a model actually
 uses becomes one entry in the generated model's `textures` map.
 
+**AND THE TWO MINECRAFT VERSIONS ANSWER DIFFERENT QUESTIONS, which is worth one paragraph because
+it is the kind of thing that gets assumed rather than checked.** 1.21.11 takes the layer from a
+per-block map — `ItemBlockRenderTypes.TYPE_BY_BLOCK`, a `Map<Block, ChunkSectionLayer>` defaulting
+to SOLID, read by `getChunkRenderType(BlockState)` — so `render_method` is the only way to move a
+block off SOLID, and this document's mapping is the whole of the fix on that version. 26.2 takes
+it from **the pixels the face touches**: `FaceBakery` passes the quad's own UV rectangle to
+`SpriteContents.computeTransparency(u0, v0, u1, v1)`, which scans the sprite's alpha inside it, and
+`ChunkSectionLayer.byTransparency` maps translucent to TRANSLUCENT and transparent to CUTOUT. There
+is no map to write and no declaration to consult.
+
+So the two versions fail in **opposite** directions, and neither failure is the other's:
+
+| | 1.21.11 | 26.2 |
+|---|---|---|
+| a block saying `alpha_test` with an RGBA texture | needs us; drawn opaque otherwise | **already correct**, and would be whatever the pixels say |
+| a block saying `opaque` whose texture has alpha | correct | **wrong**, drawn on CUTOUT |
+
+The first row is the halo. The second row is the only one this section owes anything for, and it is
+**UNOBSERVED** — every report about this halo has come from a 1.21.11 client, and 26.2 has never
+been looked at. Both rows are read out of bytecode rather than off a frame, which is stated here
+because this document has been wrong about exactly that distinction twice already (§5.3.1).
+
 ### 5.5 Occlusion
 
 Pool blocks are registered **`noOcclusion()`**. A model smaller than its block must not cull its

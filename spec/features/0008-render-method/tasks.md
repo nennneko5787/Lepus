@@ -45,9 +45,10 @@
       throw するのは「blocks が要るのに無し」な呼び出しの年到れ。空が正解の呼び出し用に用意
 - [x] **Fabric 側** — `FabricBlockLayers`（`src/1.21.11-fabric/java`）が
       `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流す
-- [x] **26.2-fabric は同じ名前の空実装** — 「書けない stub」ではなく「ここに質問が無い」。
-      Fabric API の 25.3.2 に `BlockRenderLayerMap` が無いことを jar で確認済み
-- [ ] **26.2 側の経路**（下の「26.2 には map が無い」を読むこと）
+- [x] **26.2-fabric は同じ名前の空実装** — 「書けない stub」ではない。**26.2 は宣言を読まない**。
+      画素から層が決まるので `alpha_test` は何もしなくても効く
+- [ ] **26.2 の逆方向の差**を実測する（`opaque` を宣言してMatchingに alpha がある block が
+      CUTOUT に乗る 是否）。**画面に出るまで書かない**
 - [ ] **conformance `block/render_method` は renderer を入れてから書く。**
       IR JSON は今 materials を直列化していないので
       `ir.packs[0].behavior.blocks[...].materials.render_method` を assert する場が無い。
@@ -81,19 +82,28 @@
       `src/1.21.11-neoforge/resources/lepus.mixins.json` を追加、`neoforge.mods.toml` に
       `[[mixins]]` を**そのノードだけ**に付けた。`src/neoforge/resources` には置かない — 共有すると
       class を持たないノードが壊れる（`required: true` は class 不在で launch を落とす）
-- **26.2 には map が無い。** `ItemBlockRenderTypes` が 26.2 に存在しない。層は
-  `BakedQuad.MaterialInfo.of(Material$Baked, Transparency, …)` が
-  `ChunkSectionLayer.byTransparency(transparency)` で決める。**つまり 26.2 は「block → 層」ではない**。
-  sprite の透過性から層が来る。
-  - **Fabric API も 26.2 では `BlockRenderLayerMap` を落としている**（25.3.2 の jar を確認）。
-    loader が両方 API を落としたので、これは 26.2 側の設計変更であって Fabric の欠落ではない
-  - 26.2 の正解は生成した `.png.mcmeta` に `render_type` を書く経路か、sprite の Material を
-    差し込む経路になる。**どちらも未検証**。`BlockBinding` は既に flipbook 用に `.png.mcmeta` を
-    書いているので、そこに 1 項足す形が現実的 —— ただし**読んでから書くこと**
-  - `ChunkSectionLayer` 自体は両版で `SOLID`/`CUTOUT`/`TRANSLUCENT` の 3 つで**同じ**。
-    変わるのは「どの層かを決める場所」だけ
+**26.2 は層が「宣言」ではなく「画素」から決まる —— 前述の想定を否定した。**
 
-**現状: 1.21.11 は両 loader で層が効く。26.2 は両 loader で未実装。**
+  当初「26.2 の正解は `.png.mcmeta` に `render_type` を書くこと」と考えた。**それは間違いだった。**
+  26.2 には mcmeta も宣言も介在しない。バイトコードで追った実際の経路:
+
+  1. `FaceBakery` が quad 自身の UV 矩形を `SpriteContents.computeTransparency(u0, v0, u1, v1)` に渡す
+  2. `computeTransparency` がその矩形の**画素を実際に走査**して `NativeImage.computeTransparency` の
+     結果を `Transparency.or` で畳む
+  3. `ChunkSectionLayer.byTransparency(t)` は `hasTranslucent → TRANSLUCENT`、
+     `hasTransparent → CUTOUT`、それ以外は `SOLID`
+  4. つまり **block → 層ではなく「その面が触る画素 → 層」**。map も宣言も registry も無い
+
+  したがって:
+
+  - **`alpha_test` は 26.2 で自動的に効く。** 透明 texel を持つテクスチャの block は
+    `render_method` が何と書いていようと CUTOUT に乗る。トロフィーのハローがまさにそのケース。
+    Fabric API が `BlockRenderLayerMap` を落としたのは**呼び先が無くなった**からで、
+    我々の欠落ではない
+  - **26.2 が間違うのは逆方向。** `opaque` を宣言してMatchingたsectに alpha が混ざった
+    block は CUTOUT に乗ってしまう。何も宣言を見ないから。これは実差で ledger に書いた
+  - ただし **これは全部バイトコードからの読みで、画面から観測したものではない。**
+    このハローの報告はすべて 1.21.11 のクライアントから来ている。**26.2 は一度も見ていない**
 
 **粒度が合うのは pool の性質であって設計ではない。** 1 Bedrock block = 1 slot = 1 `PoolBlock` なので
 `Map<Block, ...>` でちょうど表現できる。slot を block 間で共有するようになったらこの feature は
@@ -109,4 +119,3 @@
 
 - [ ] `cutout_block` が両面か片面か。`alpha_test_single_sided` と `double_sided` の実装は
       これが分かるまで書けない
-- [ ] 26.2 側で「sprite の透過性 → 層」の経路を実測する（上の導入側を参照）
