@@ -47,7 +47,7 @@
       `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流す
 - [x] **26.2-fabric は同じ名前の空実装** — 「書けない stub」ではない。**26.2 は宣言を読まない**。
       画素から層が決まるので `alpha_test` は何もしなくても効く
-- [ ] **26.2 の逆方向の差**を実測する（`opaque` を宣言してMatchingに alpha がある block が
+- [ ] **26.2 の逆方向の差**を実測する（`opaque` を宣言してMatchingに alpha が混ざった block が
       CUTOUT に乗る 是否）。**画面に出るまで書かない**
 - [ ] **conformance `block/render_method` は renderer を入れてから書く。**
       IR JSON は今 materials を直列化していないので
@@ -119,3 +119,20 @@
 
 - [ ] `cutout_block` が両面か片面か。`alpha_test_single_sided` と `double_sided` の実装は
       これが分かるまで書けない
+
+## mixin が production jar で生き残るか（静的に閉じた）
+
+`defaultRequire: 1` は注入が失敗すれば**launch を落とす**。そして **mixin のコンパイルは
+ターゲット method が存在することを証明しない** — 解決は実行時に ASM で行われる。だからビルドが
+緑でも壊れる。両 jar を開いて**文字列を実測**した。
+
+| | jar 内の文字列 | 判定 |
+|---|---|---|
+| NeoForge | `ItemBlockRenderTypes` / `getChunkRenderType` のまま | **正しい**。NeoForge の runtime は Mojmap 名を使うので reobf が要らない |
+| Fabric（既存の `ItemInHandRendererMixin`） | `renderArmWithItem` が **`method_3228`** に変わっている | **正しい**。Loom が文字列リテラルを直接 intermediary に書き換える |
+
+**両 jar に refmap は無い。それで正しい。** refmap が要るのは「named のままにして実行時に
+引き当てる」場合だけで、ここでは Loom がリテラルを焼き、NeoForge はそもそも焼きない。
+**Fabric と NeoForge で做法が違うのに同じ「refmap 不要」で済んでいる**ので、mixin を書くたびに
+同じ確認をする価値がある。
+
