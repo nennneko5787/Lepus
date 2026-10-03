@@ -228,4 +228,111 @@ class BlockModelsTest {
         assertTrue(model.get("textures").asObject().orElseThrow()
                 .members().containsKey("particle"));
     }
+
+    /**
+     * <b>The trophy's own declaration, verbatim.</b> This is the string that was sitting in the pack
+     * while geometry and UV were both ruled out, and it is the one line this whole entry exists
+     * for.
+     */
+    @Test
+    void aPackThatDeclaresAlphaTestIsRead() {
+        BlockModels.Materials materials = BlockModels.materialsOf(components("""
+                {
+                  "minecraft:material_instances": {
+                    "*": { "texture": "binah_block", "render_method": "alpha_test" }
+                  }
+                }"""));
+        assertEquals(Optional.of("binah_block"), materials.textureFor("up"));
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST, BlockModels.layerOf(materials));
+    }
+
+    /** A pack that says nothing is opaque, which is the answer almost every block needs. */
+    @Test
+    void aPackThatDeclaresNoMethodIsOpaque() {
+        BlockModels.Materials materials = BlockModels.materialsOf(components("""
+                { "minecraft:material_instances": { "*": { "texture": "stone" } } }"""));
+        assertTrue(materials.renderMethods().isEmpty());
+        assertEquals(BlockModels.RenderMethod.OPAQUE, BlockModels.layerOf(materials));
+    }
+
+    /**
+     * <b>Unrecognised is opaque, not absent.</b> A misspelling then draws the block rather than
+     * deleting it, which is the trade constitution rule 5 asks for.
+     */
+    @Test
+    void anUnknownMethodIsOpaque() {
+        assertEquals(BlockModels.RenderMethod.OPAQUE,
+                BlockModels.RenderMethod.read(Optional.of("alfa_test")));
+        assertEquals(BlockModels.RenderMethod.OPAQUE, BlockModels.RenderMethod.read(Optional.empty()));
+    }
+
+    /**
+     * <b>Two methods on one block, and Java cannot honour both.</b> A chunk layer is chosen per
+     * BLOCK, so the collapse has to pick one. It picks opaque, because a block drawn opaque is a
+     * picture somebody can recognise and report, and a block drawn cutout is one whose faces are
+     * silently half-transparent with nothing to look at.
+     */
+    @Test
+    void instancesThatDisagreeCollapseToOpaque() {
+        BlockModels.Materials materials = BlockModels.materialsOf(components("""
+                {
+                  "minecraft:material_instances": {
+                    "up": { "texture": "top", "render_method": "alpha_test" },
+                    "side": { "texture": "sides" }
+                  }
+                }"""));
+        assertEquals(1, materials.renderMethods().size());
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST,
+                materials.renderMethods().get("up"));
+        // `side` declares NOTHING, and an instance inherits nothing in Java, so it counts as
+        // opaque. One alpha_test face and one silent face is a disagreement, not a consensus.
+        assertEquals(BlockModels.RenderMethod.OPAQUE, BlockModels.layerOf(materials));
+    }
+
+    /** One method stated on every instance is not a disagreement. */
+    @Test
+    void agreeingInstancesCollapseToThatMethod() {
+        BlockModels.Materials materials = BlockModels.materialsOf(components("""
+                {
+                  "minecraft:material_instances": {
+                    "up": { "texture": "top", "render_method": "alpha_test" },
+                    "side": { "texture": "sides", "render_method": "alpha_test" }
+                  }
+                }"""));
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST, BlockModels.layerOf(materials));
+    }
+
+    /**
+     * <b>An alias inherits the method too, not only the texture.</b> "down": "up" copies an
+     * instance, and an instance is a texture AND a method - reading only the texture is what left
+     * the previous alias pass half-done.
+     */
+    @Test
+    void anAliasInheritsTheMethodAsWellAsTheTexture() {
+        BlockModels.Materials materials = BlockModels.materialsOf(components("""
+                {
+                  "minecraft:material_instances": {
+                    "up": { "texture": "top", "render_method": "alpha_test" },
+                    "down": "up"
+                  }
+                }"""));
+        assertEquals(Optional.of("top"), materials.textureFor("down"));
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST,
+                materials.renderMethods().get("down"));
+        assertEquals(BlockModels.RenderMethod.ALPHA_TEST, BlockModels.layerOf(materials));
+    }
+
+    /**
+     * <b>The two that cannot be honoured, kept as names rather than flattened at read time.</b> The
+     * IR says what the pack asked for and the renderer decides what Java can give it, so the
+     * divergence is one place in the ledger rather than a silent loss at parse time.
+     */
+    @Test
+    void theTwoMethodsJavaCannotExpressAreNamedBeforeTheyAreFolded() {
+        assertEquals("alpha_test_single_sided",
+                BlockModels.RenderMethod.CUTOUT_ONE_SIDED.bedrockName());
+        assertEquals("double_sided", BlockModels.RenderMethod.DOUBLE_SIDED.bedrockName());
+        assertTrue(BlockModels.RenderMethod.read(Optional.of("alpha_test_single_sided"))
+                .needsOwnLayer());
+    }
 }

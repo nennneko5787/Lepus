@@ -24,11 +24,19 @@
 
 ## 実装（まだ）
 
-- [ ] `BlockModels` に `MaterialInstance`（texture + `renderMethod`）を入れる
-- [ ] conformance `block/render_method` を先に書く（red を最初に見る）
-- [ ] `BlockBinding` が pipeline を選ぶようにする
+- [x] `BlockModels.Materials` が `render_method` を読む。`RenderMethod` enum（5 名）と
+      `layerOf` で 1 つの答えへ畳む。alias は texture だけでなく **method も継承**する
+- [x] `BlockModelsTest` に 7 件。実パックの `alpha_test` 宣言そのままを fixture にしている
+- [ ] `BlockBinding` が slot ごとに Bedrock の `render_method` を client 側へ出す
+- [ ] **conformance `block/render_method` は renderer を入れてから書く。**
+      IR JSON は今 materials を直列化していないので、
+      `ir.packs[0].behavior.blocks[...].materials.render_method` を assert する場が無い。
+      これを足すと既存 golden 11 件が全部動くが、それで得られるのは
+      「我々が書き出したものを検証するだけ」で、**何も証明にならない**。
+      §5.3.1 で出した失敗とまったく同じ構造。IR で assert できる有意思なものは
+      「どの chunk layer に乗るか」**ではなく画面**なので、renderer が入ってから書く。
 - [ ] `@SpecImpl("SC-150#minecraft:material_instances")`
-- [ ] coverage `render_method: ok`。-entry は他フィールドが残るため `partial` のまま
+- [ ] coverage `render_method: ok`。entry は他フィールドが残るため `partial` のまま
 - [ ] `./gradlew specAll` green
 - [ ] **トロフィーをワールドに置いてハローの輪郭が透けることを確認**
 

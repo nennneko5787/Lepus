@@ -55,20 +55,28 @@ public final class BlockModels {
     }
 
     /**
-     * The texture keys a block's faces use, as {@code material_instances} names them.
+     * The texture keys a block's faces use, and the render methods they ask for.
      *
      * <p>Keyed by instance name — {@code "*"} for every face, or {@code up} / {@code down} /
      * {@code side} / a face name. The values are Bedrock <b>texture keys</b>, not paths: they index
      * {@code textures/terrain_texture.json} in the resource pack half, and resolving them is a
      * separate step that needs that file.
+     *
+     * @param renderMethods the method each instance asks for, as {@code render_method} states it.
+     *                     Empty for a pack that declares none, which is opaque — the common case,
+     *                     and the reason the map exists at all rather than a single field: an
+     *                     instance without one inherits nothing in Java, and the collapse in
+     *                     {@link #layerOf} is where that is decided
      */
-    public record Materials(Map<String, String> textureKeys, boolean fullCube) {
+    public record Materials(Map<String, String> textureKeys,
+            Map<String, RenderMethod> renderMethods, boolean fullCube) {
 
         public Materials {
             textureKeys = Map.copyOf(textureKeys);
+            renderMethods = Map.copyOf(renderMethods);
         }
 
-        public static final Materials NONE = new Materials(Map.of(), true);
+        public static final Materials NONE = new Materials(Map.of(), Map.of(), true);
 
         /** The texture for a face, falling back to {@code "*"} the way Bedrock does. */
         public Optional<String> textureFor(String face) {
@@ -80,25 +88,141 @@ public final class BlockModels {
         }
     }
 
+    /**
+     * What Bedrock's {@code render_method} asks for, as this build's five chunk layers.
+     * SC-150 §5.4.
+     *
+     * <p><b>Five in Bedrock, three in Java, and the mapping is not one to one.</b> 1.21.11's
+     * {@code ChunkSectionLayer} has exactly {@code SOLID}, {@code CUTOUT} and {@code TRANSLUCENT},
+     * while a chunk layer is chosen per <b>block</b> and cannot vary per face. So
+     * {@link #CUTOUT_ONE_SIDED} and {@link #DOUBLE_SIDED} have no home of their own and are folded
+     * into {@link #CUTOUT} — which is a divergence, it is recorded as one in the ledger, and the
+     * face that is wrongly drawn is a far smaller loss than the alpha being dropped entirely.
+     */
+    public enum RenderMethod {
+
+        /** {@code opaque}, and the default for a pack that says nothing. {@code solid_block}. */
+        OPAQUE,
+
+        /** {@code alpha_test}. {@code cutout_block}, which defines {@code ALPHA_CUTOUT}. */
+        ALPHA_TEST,
+
+        /**
+         * {@code alpha_test_single_sided}. <b>Folds into {@link #CUTOUT}</b> — Java has no second
+         * cutout layer, so the block draws with alpha and without per-face culling.
+         */
+        CUTOUT_ONE_SIDED,
+
+        /** {@code blend}. {@code translucent_terrain}, which does not discard at all. */
+        BLEND,
+
+        /**
+         * {@code double_sided}. <b>Folds into {@link #OPAQUE}</b> — Java's solid layer already
+         * draws both sides of a face, which is the one thing this method asks for.
+         */
+        DOUBLE_SIDED;
+
+        /** The name Bedrock writes, for a diagnostic that quotes the pack's own spelling. */
+        public String bedrockName() {
+            return switch (this) {
+                case OPAQUE -> "opaque";
+                case ALPHA_TEST -> "alpha_test";
+                case CUTOUT_ONE_SIDED -> "alpha_test_single_sided";
+                case BLEND -> "blend";
+                case DOUBLE_SIDED -> "double_sided";
+            };
+        }
+
+        /**
+         * Whether this method needs a layer other than {@code SOLID}.
+         *
+         * <p>Read by the renderer to decide whether to ask the client for a different layer at all,
+         * so the common answer costs nothing.
+         */
+        public boolean needsOwnLayer() {
+            return this != OPAQUE;
+        }
+
+        /**
+         * Reads the pack's spelling, and anything unrecognised is {@link #OPAQUE}.
+         *
+         * <p><b>Unknown is opaque, and that is a choice rather than an oversight.</b> A misspelling
+         * then draws the block rather than discarding it, which is the trade constitution rule 5
+         * asks for; the alternative is a block that vanishes because of a typo in a string.
+         */
+        public static RenderMethod read(Optional<String> written) {
+            return written.map(text -> switch (text) {
+                case "opaque" -> OPAQUE;
+                case "alpha_test" -> ALPHA_TEST;
+                case "alpha_test_single_sided" -> CUTOUT_ONE_SIDED;
+                case "blend" -> BLEND;
+                case "double_sided" -> DOUBLE_SIDED;
+                default -> OPAQUE;
+            }).orElse(OPAQUE);
+        }
+    }
+
     /** Reads one resolved state's materials. Anything unrecognised leaves the defaults in place. */
     public static Materials materialsOf(Map<BedrockId, JsonValue> components) {
         Map<String, String> textures = new LinkedHashMap<>();
+        Map<String, RenderMethod> methods = new LinkedHashMap<>();
         JsonValue instances = components.get(MATERIAL_INSTANCES);
         if (instances != null) {
             instances.asObject().ifPresent(object -> object.members().forEach((name, value) ->
-                    // An instance is an object with a `texture`; it can also be a STRING naming
-                    // another instance to copy. The alias form is resolved after the pass, because
-                    // it may name an instance declared later in the same object.
-                    value.asObject()
-                            .flatMap(entry -> Optional.ofNullable(entry.members().get("texture")))
-                            .flatMap(JsonValue::asString)
-                            .ifPresent(texture -> textures.put(name, texture))));
-            instances.asObject().ifPresent(object -> object.members().forEach((name, value) ->
-                    value.asString()
-                            .map(textures::get)
-                            .ifPresent(texture -> textures.put(name, texture))));
+                    // An instance is an object with a `texture` and a `render_method`; it can also
+                    // be a STRING naming another instance to copy. The alias form is resolved
+                    // after the pass, because it may name an instance declared later in the same
+                    // object. `render_method` is a second pass for the same reason: an alias names
+                    // an instance, and an alias inherits that instance's method too.
+                    value.asObject().ifPresent(entry -> {
+                        Optional.ofNullable(entry.members().get("texture"))
+                                .flatMap(JsonValue::asString)
+                                .ifPresent(texture -> textures.put(name, texture));
+                        Optional.ofNullable(entry.members().get("render_method"))
+                                .flatMap(JsonValue::asString)
+                                .ifPresent(written ->
+                                        methods.put(name, RenderMethod.read(Optional.of(written))));
+                    })));
+            instances.asObject().ifPresent(object -> object.members().forEach((name, value) -> {
+                value.asString().map(textures::get)
+                        .ifPresent(texture -> textures.put(name, texture));
+                value.asString().map(methods::get)
+                        .ifPresent(method -> methods.put(name, method));
+            }));
         }
-        return new Materials(textures, isFullCube(components.get(GEOMETRY)));
+        return new Materials(textures, methods, isFullCube(components.get(GEOMETRY)));
+    }
+
+    /**
+     * The layer a block draws on, collapsed to one answer.
+     *
+     * <p><b>Per instance, collapsed here, because a chunk layer is per block.</b> Bedrock states the
+     * method on a material instance and a face picks an instance, so a block <em>can</em> declare
+     * two methods; Java cannot honour that, and pretending otherwise by picking the most demanding
+     * one would draw every face with alpha. So: {@code "*"} when the pack states it, else the
+     * method when every declared instance agrees, and opaque when they do not.
+     *
+     * <p>Disagreement resolves to opaque rather than to cutout because a block drawn opaque is a
+     * picture somebody can recognise and report, and a block drawn cutout is one whose faces are
+     * silently half-transparent.
+     */
+    public static RenderMethod layerOf(Materials materials) {
+        RenderMethod wildcard = materials.renderMethods().get("*");
+        if (wildcard != null) {
+            return wildcard;
+        }
+        if (materials.textureKeys.isEmpty()) {
+            return RenderMethod.OPAQUE;
+        }
+        // Every instance that draws something contributes an answer, and one that DECLARES NOTHING
+        // contributes opaque rather than nothing. An instance inherits nothing in Java, so counting
+        // it as absent would let one alpha_test face promote a block whose other faces are
+        // unaccounted for - the opposite of the failure this collapse exists to avoid.
+        java.util.Set<RenderMethod> distinct = new java.util.LinkedHashSet<>();
+        materials.textureKeys.keySet()
+                .forEach(instance -> distinct.add(materials.renderMethods()
+                        .getOrDefault(instance, RenderMethod.OPAQUE)));
+        return distinct.size() == 1 ? distinct.iterator().next() : RenderMethod.OPAQUE;
     }
 
     /**

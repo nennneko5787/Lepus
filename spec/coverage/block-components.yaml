@@ -174,16 +174,24 @@ entries:
 
       THE CAUSE IS NOW ESTABLISHED rather than described, and it is worth having in one place
       because this symptom was chased into the wrong subsystem twice. `render_method` occurs zero
-      times in `src/` and in `core/`. A real trophy declares `"render_method": "alpha_test"` and
-      ships an RGBA texture, and alpha is discarded by a shader DEFINE and not by the shader: both
-      `terrain.fsh` and `block.fsh` gate `discard` on `#ifdef ALPHA_CUTOUT`. In 1.21.11
-      `CoreShaders` builds `pipeline/solid_block` with no such define and a separate
-      `pipeline/cutout_block` with `ALPHA_CUTOUT = 0.5f`, and the entity pipelines split the same
-      way. A transparent halo therefore renders as an opaque one - a wrong picture in a recognisable
+      times in the renderer, which is the part that matters: 1.21.11 chooses a chunk layer per BLOCK
+      and has exactly three of them - SOLID, CUTOUT, TRANSLUCENT - and ours never asks for a
+      different one. A block declaring `alpha_test` therefore draws on `pipeline/solid_block`,
+      which carries no `ALPHA_CUTOUT` define, while `pipeline/cutout_block` (0.5f) exists and goes
+      unused; both `terrain.fsh` and `block.fsh` gate `discard` on that define and neither
+      discards on its own. A real trophy declares `"render_method": "alpha_test"`, ships an RGBA
+      texture, and renders a transparent halo as an opaque one - a wrong picture in a recognisable
       shape, not a missing block - while the same block held in the hand is correct, because that
-      path runs on `entity_cutout_no_cull`. That asymmetry is the signature, and it is why the cause
-      is a render-type decision and not a UV or a geometry one; the geometry rule in the same
+      path runs on `entity_cutout_no_cull`. That asymmetry is the signature, and it is why the
+      cause is a render-type decision and not a UV or a geometry one; the geometry rule in the same
       section was written against a symptom its reporter later withdrew.
+
+      THE IR READS IT NOW; ONLY THE LAYER IS MISSING, and the field says missing for that reason.
+      `BlockModels.RenderMethod` carries all five names Bedrock writes and `BlockModels.layerOf`
+      collapses them to one answer, because a chunk layer is a property of the block and a pack may
+      declare two methods on one block. Two of the five have no home in Java and are folded -
+      `alpha_test_single_sided` into CUTOUT, `double_sided` into SOLID - which is a divergence and
+      is named as one here rather than flattened away at parse time.
 
   - id: minecraft:map_color
     status: stub

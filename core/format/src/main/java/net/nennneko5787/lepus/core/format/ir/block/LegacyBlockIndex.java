@@ -98,7 +98,7 @@ public record LegacyBlockIndex(Map<String, Map<String, String>> texturesByBlock,
         Map<String, String> faces = lookup(texturesByBlock, identifier);
         return faces == null
                 ? Optional.empty()
-                : Optional.of(new BlockModels.Materials(faces, true));
+                : Optional.of(new BlockModels.Materials(faces, Map.of(), true));
     }
 
     /** The Bedrock sound group a block declares, e.g. {@code metal}. */
