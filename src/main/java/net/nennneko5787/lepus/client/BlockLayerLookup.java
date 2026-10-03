@@ -23,6 +23,13 @@ import net.nennneko5787.lepus.core.api.SpecImpl;
  * replacing the reference means the old set stops being reachable the moment the new one is
  * installed, rather than on a reload someone has to remember to trigger.
  *
+ * <p><b>There is no {@code clear()}, and that is a decision rather than an omission.</b> One was
+ * written; nothing called it; and a docstring promising a reset that no code performs is the worse
+ * of the two mistakes. The next {@link BlockLayerInstaller#install()} replaces the whole set
+ * anyway, and the only window in which a stale entry could be consulted is the one between worlds,
+ * where there is no world to render. Fabric's own map is the opposite case and cannot be emptied at
+ * all — see {@code FabricBlockLayers} for why that is harmless rather than a leak to fix.
+ *
  * <p>Client-only by construction: {@code ChunkSectionLayer} is a client class, and this type is
  * named by no shared code path that a dedicated server would load.
  */
@@ -74,6 +81,7 @@ public final class BlockLayerLookup {
     }
 
     /**
+     /**
      * Hands the set to the loader.
      *
      * <p>Separate from {@link #install} because the two halves fail differently. Filling the map
@@ -82,16 +90,6 @@ public final class BlockLayerLookup {
      */
     static void push() {
         pusher.run();
-    }
-
-    /** Forgets everything, so a client between worlds cannot answer with the last world's blocks. */
-    public static void clear() {
-        layers = Map.of();
-    }
-
-    /** How many blocks are currently on a layer of their own. For a log line. */
-    public static int size() {
-        return layers.size();
     }
 
     /** The installed set. The loader's push reads this; nothing else should. */

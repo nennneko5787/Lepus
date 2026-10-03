@@ -68,11 +68,6 @@ public final class BlockLayerInstaller {
                 + " bound block(s) on a chunk layer of their own");
     }
 
-    /** Forgets everything. A client between worlds must not answer with the last world's blocks. */
-    public static void forget() {
-        BlockLayerLookup.clear();
-    }
-
     /**
      * The one place the five Bedrock methods become three Java layers.
      *

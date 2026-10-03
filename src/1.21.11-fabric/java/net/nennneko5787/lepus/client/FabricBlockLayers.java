@@ -25,11 +25,12 @@ import net.nennneko5787.lepus.core.api.SpecImpl;
  * across source directories; {@code AttachableRenderTypes} is per-version and does the same.
  *
  * <p><b>Nothing is removed, and that is a fact about the map rather than a choice.</b> The API
- * offers {@code putBlock} and nothing that takes a block off, so an entry outlives the pack that
- * put it there. A world that disables a pack leaves its transparent blocks on CUTOUT for the rest
- * of the session. Nothing draws wrong - an unbound slot draws the empty model, which has no faces
- * to cut out - but removing it would mean reaching into vanilla's map a second way, and the
- * mismatch between two ways is worse than a stale entry. Recorded in SC-150 §5.4.
+ * offers {@code putBlock} and nothing that takes a block off, so an entry outlives both the pack
+ * and the world that put it there — the opposite of NeoForge's mixin, which reads a map this mod
+ * owns and replaces whole on every install. Nothing draws wrong from the staleness: an unbound
+ * slot draws the empty model, which has no faces to cut out, and between worlds there is no world
+ * to render. Removing it would mean a second route into vanilla's map, and two routes into one map
+ * is the thing the NeoForge side was written to avoid. Recorded in SC-150 §5.4.
  *
  * <p><b>1.21.11 only, and the reason is not ours to choose.</b> Fabric API removed
  * {@code BlockRenderLayerMap} in the build that targets 26.2, because 26.2 takes a block's layer
