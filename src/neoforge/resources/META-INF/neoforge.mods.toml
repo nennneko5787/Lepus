@@ -28,6 +28,14 @@ versionRange = "[1,)"
 ordering = "NONE"
 side = "BOTH"
 
+# Mixins are the loader's, on this loader. Fabric names the same file from fabric.mod.json; here it
+# is a file reference, and the config itself only EXISTS on the node whose class it lists - see
+# build.neoforge.gradle.kts and the intersection directory's comment. The marker below becomes the
+# real block on a node that ships one and VANISHES on a node that does not, because a config with
+# `"required": true` that names a class the jar does not contain fails the launch rather than
+# skipping the mixin, and a declared config the jar lacks is the same failure one step earlier.
+@@MIXINS@@
+
 [[dependencies.lepus]]
 modId = "minecraft"
 type = "required"

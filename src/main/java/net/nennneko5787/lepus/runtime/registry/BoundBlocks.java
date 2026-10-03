@@ -177,6 +177,16 @@ public final class BoundBlocks {
         menuOrder = List.of();
     }
 
+    /**
+     * The whole snapshot, for a caller that has to walk every binding at once.
+     *
+     * <p>Exists because SC-150 §5.4's layer set is computed from the set rather than per slot:
+     * the client installs it once and the mixin asks about one block at a time.
+     */
+    public static Map<BlockSlot, Bound> all() {
+        return bySlot;
+    }
+
     public static Optional<Bound> at(BlockSlot slot) {
         // Null-checked, and not defensively: see physicsOf. Map.of() throws on a null key rather
         // than answering absent, so the guard has to be here as well as there.

@@ -26,6 +26,14 @@ public final class ClientReload {
      */
     public static void now() {
         Minecraft client = Minecraft.getInstance();
-        client.execute(client::reloadResourcePacks);
+        // BEFORE the reload, not after. A chunk layer is consulted when a section mesh is BUILT, and
+        // a reload rebuilds every model and atlas but not the meshes; installing first means the
+        // meshes built by whatever comes next - a fresh world, a reloaded one - see the right
+        // layer, and installing after the reload would leave everything already built untouched and
+        // looking like the change had no effect. SC-150 section 5.4.
+        client.execute(() -> {
+            BlockLayerInstaller.install();
+            client.reloadResourcePacks();
+        });
     }
 }

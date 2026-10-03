@@ -150,4 +150,16 @@ public final class Lepus {
         }
         return blockPool;
     }
+
+    /**
+     * Whether the pool exists yet, for a caller that has a correct answer either way.
+     *
+     * <p>A client before mod init is not a programming error - it is a client on the main menu,
+     * which has no world and therefore nothing bound. {@link #blockPool()} throws there on purpose,
+     * because a caller that wanted blocks and got none would be silently wrong; this one exists for
+     * the caller that wants an empty answer and would be right to get it.
+     */
+    public static boolean poolRegistered() {
+        return blockPool != null;
+    }
 }

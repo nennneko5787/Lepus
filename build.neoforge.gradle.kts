@@ -36,6 +36,11 @@ sourceSets {
         // that opened this axis; NeoForge has the directory for symmetry, and because the same
         // thing — a loader API changing between Minecraft versions — can happen here too.
         java.srcDir(rootProject.file("src/$mc-neoforge/java"))
+        // ...and its RESOURCES too, because a mixin config is a resource. Shared
+        // `src/neoforge/resources/lepus.mixins.json` would list a class that only exists on one
+        // node, and `"required": true` turns a missing class into a failed launch rather than a
+        // skipped mixin. Gradle tolerates the directory not existing on the node that needs none.
+        resources.srcDir(rootProject.file("src/$mc-neoforge/resources"))
     }
 }
 
@@ -123,8 +128,24 @@ dependencies {
 // The Minecraft range is PINNED, not open-ended. See the Fabric buildscript for why.
 tasks.named<ProcessResources>("processResources") {
     inputs.property("minecraftVersion", mc)
+    // Whether THIS node ships a mixin config at all. Read from the file rather than from a flag,
+    // so the two cannot disagree: a node with the class but not the config would ship an
+    // unreferenced mixin, and a node with the config but not the class would fail the launch.
+    val mixinConfig = rootProject.file("src/$mc-neoforge/resources/lepus.mixins.json")
+    inputs.property("lepusMixinConfig", mixinConfig.exists())
     filesMatching("META-INF/neoforge.mods.toml") {
-        expand("minecraftVersion" to mc)
+        // Both substitutions in one filter rather than `expand` plus a second. The template engine
+        // cannot delete what it did not write, so the marker has to be handled here, and a file
+        // that goes through two transforms has to be read in the order they run - one place to
+        // look beats two.
+        filter { text ->
+            text.replace("\${minecraftVersion}", mc)
+                .replace("@@MIXINS@@", if (mixinConfig.exists()) {
+                    "[[mixins]]\nconfig = \"lepus.mixins.json\""
+                } else {
+                    ""
+                })
+        }
     }
 }
 

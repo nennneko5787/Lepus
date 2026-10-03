@@ -36,6 +36,15 @@
 - [x] `BlockPoolRegistrationTest` に 2 件（1 slot が alpha を要求 / 未束縛 slot は要求しない）
 - [x] `appearanceOf` と同じ `materialsOf` を使う。texture と method は同じオブジェクトにあるので
       2 回解くと**互いに食い違う**。それが今回の症状そのもの
+- [x] `BlockLayerLookup` — 共有 holder。loader が違っても**決定は 1 箇所**
+- [x] `BlockLayerInstaller` — bindings から `Map<Block, ChunkSectionLayer>` を作る。
+      `layerFor` が Bedrock 5 方法 → Java 3 層の唯一の変換点
+- [x] `ClientReload.now()` が reload の**前**に install する。reload は atlas と model を
+      作り直すが**chunk mesh は作り直さない**ので、後だと何も変わらない
+- [x] `Lepus.poolRegistered()` — main menu では pool が無いが、それは正常。`blockPool()` が
+      throw するのは「blocks が要るのに無し」な呼び出しの年到れ。空が正解の呼び出し用に用意
+- [ ] **Fabric 側** — `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流すだけ
+- [ ] **26.2 側の経路**（下の「26.2 には map が無い」を読むこと）
 - [ ] **conformance `block/render_method` は renderer を入れてから書く。**
       IR JSON は今 materials を直列化していないので
       `ir.packs[0].behavior.blocks[...].materials.render_method` を assert する場が無い。
@@ -63,15 +72,25 @@
 
 **loader ごとの差は 1 行 +/- mixin で，而且是 loader だけ:**
 
-- Fabric: `BlockRenderLayerMap.putBlock(poolBlock, ChunkSectionLayer.CUTOUT)`
-- NeoForge: `ItemBlockRenderTypes` の `TYPE_BY_BLOCK` への accessor mixin。
-  **このプロジェクトはまだ neoforge 側に mixin config を持っていない**
-  （`src/neoforge/resources/lepus.mixins.json` と `neoforge.mods.toml` の `[[mixins]]` が要る）。
-  Fabric 側は `src/fabric/resources/lepus.mixins.json` が既にある
+- Fabric: `BlockRenderLayerMap.putBlock(poolBlock, ChunkSectionLayer.CUTOUT)` — **未実装**。
+  `BlockLayerLookup` に入れて流すだけなので 3 行
+- NeoForge: `ItemBlockRenderTypesMixin` — **実装済み**。`src/1.21.11-neoforge/java` に置き、
+  `src/1.21.11-neoforge/resources/lepus.mixins.json` を追加、`neoforge.mods.toml` に
+  `[[mixins]]` を**そのノードだけ**に付けた。`src/neoforge/resources` には置かない — 共有すると
+  class を持たないノードが壊れる（`required: true` は class 不在で launch を落とす）
+- **26.2 には map が無い。** `ItemBlockRenderTypes` が 26.2 に存在しない。層は
+  `BakedQuad.MaterialInfo.of(Material$Baked, Transparency, …)` が
+  `ChunkSectionLayer.byTransparency(transparency)` で決める。**つまり 26.2 は「block → 層」ではない**。
+  sprite の透過性から層が来る。
+  - 26.2 の正解は生成した `.png.mcmeta` に `render_type` を書く経路か、sprite の Material を
+    差し込む経路になる。**どちらも未検証**。`BlockBinding` は既に flipbook 用に `.png.mcmeta` を
+    書いているので、そこに 1 項足す形が現実的 —— ただし**読んでから書くこと**
+  - `ChunkSectionLayer` 自体は両版で `SOLID`/`CUTOUT`/`TRANSLUCENT` の 3 つで**同じ**。
+    変わるのは「どの層かを決める場所」だけ
 
 **粒度が合うのは pool の性質であって設計ではない。** 1 Bedrock block = 1 slot = 1 `PoolBlock` なので
 `Map<Block, ...>` でちょうど表現できる。slot を block 間で共有するようになったらこの feature は
-成立しなくなる。
+成立しなくなる（26.2 の sprite 経路にはこの制約が無いぶん反而に有利）。
 
 **残る罠: rebind してもチャンクメッシュは作り直されない。** 層は**メッシュ構築時**に読まれるので、
 実行中に pack を有効化/無効化した直後に構築済みの section には反映されない。SC-120 §8 step 5 の
@@ -83,4 +102,4 @@
 
 - [ ] `cutout_block` が両面か片面か。`alpha_test_single_sided` と `double_sided` の実装は
       これが分かるまで書けない
-- [ ] 26.2 側の pipeline 名と `ChunkSectionLayer` の定数が 1.21.11 と揃っているか
+- [ ] 26.2 側で「sprite の透過性 → 層」の経路を実測する（上の導入側を参照）
