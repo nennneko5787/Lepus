@@ -85,6 +85,7 @@
                 "collision": [0,0,0,16,2,16]
               }
             ],
+            "render_method": ["opaque"],
             "resolved": [
               ["minecraft:geometry","minecraft:material_instances","minecraft:collision_box"]
             ],

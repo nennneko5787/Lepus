@@ -1,0 +1,59 @@
+# Schema: spec/schemas/conformance-case.schema.json
+
+id: block/render_method
+tier: T0
+spec: SC-150
+
+features:
+  - "minecraft:material_instances"
+
+description: >-
+  A block's `render_method` reaches the IR, because the one corrupted texture this project chased
+  hardest was a block declaring `alpha_test` in three lines of JSON that nothing read. SC-150 §5.4.
+
+  **This case is a BACKFILL and says so.** `spec/process.md` §3 asks for a conformance case before
+  the implementation, so that it fails first. This one was written after, once the behaviour had
+  been seen on screen - a trophy's halo drawing with its transparent pixels showing, on a 1.21.11
+  Fabric client. That is the trade: the case could not be written first because the answer it pins
+  was not known until the renderer existed, and an unverified answer is worse than no answer. It is
+  here now because without it a change to the parser would turn the layer back to opaque with a
+  green build beside it, which is exactly the failure that started this.
+
+  Three blocks, and each is a different question. One declares `alpha_test`, which is the trophy's
+  case and the only one that decides a visible pixel. One declares nothing, and must be opaque -
+  what almost every block in every pack needs, and what a default that guessed would get wrong
+  loudly. One declares `alpha_test` on one instance and **nothing** on another, which Bedrock can
+  express and Java cannot, and which must resolve to opaque rather than to the more demanding of
+  the two: a block drawn opaque is a picture somebody can recognise and report, and a block drawn
+  cutout is one whose faces are silently half transparent with nothing to look at.
+
+  The golden asserts the BEDROCK SPELLING, because that is what an author wrote and what someone
+  will grep this file for. The folding to Java's three chunk layers happens in the renderer, and
+  its two divergences are in the ledger rather than flattened into this file.
+
+pack:
+  extends: minimal_bp
+  dir: pack
+  container: directory
+
+diagnostics:
+  forbidden:
+    - SCE-2031          # every geometry here is a unit cube or absent
+  exhaustive: false
+
+expect:
+  ir: expected/ir.json
+
+assert:
+  # The claim, and the one the halo depends on: the method is READ, not inferred from the texture.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:cutout_wheel'].render_method[0]
+    equals: "alpha_test"
+
+  # Declaring nothing is opaque, which is the answer for most of the game.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:silent_wheel'].render_method[0]
+    equals: "opaque"
+
+  # Two instances, two answers, one block. `side` declares NOTHING, and an instance inherits
+  # nothing in Java, so it counts as opaque: a disagreement, not a consensus.
+  - that: ir.packs[0].behavior.blocks['sc_conformance:split_wheel'].render_method[0]
+    equals: "opaque"

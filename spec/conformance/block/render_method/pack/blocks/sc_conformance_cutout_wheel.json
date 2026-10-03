@@ -1,0 +1,18 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "sc_conformance:cutout_wheel",
+      "menu_category": { "category": "construction" }
+    },
+    "components": {
+      "minecraft:material_instances": {
+        "*": { "texture": "sc_conformance_disc", "render_method": "alpha_test" }
+      },
+      "minecraft:collision_box": {
+        "origin": [-4, 0, -4],
+        "size": [8, 1, 8]
+      }
+    }
+  }
+}

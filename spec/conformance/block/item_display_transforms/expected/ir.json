@@ -55,6 +55,7 @@
             "physics": [
               {}
             ],
+            "render_method": ["opaque"],
             "resolved": [
               ["minecraft:geometry","minecraft:material_instances"]
             ],

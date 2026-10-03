@@ -153,6 +153,17 @@ public final class AddonIrJson {
         // nothing about the conversion, which is the part that can be wrong.
         node.put("model", new JsonArray(b.resolveAll().stream()
                 .map(resolved -> transpiled(resolved, resource)).toList()));
+        // Which chunk layer the block draws on, collapsed to one answer because a layer is a
+        // property of the block. SC-150 §5.4. This is in the golden because the layer is now
+        // OBSERVED working - the trophy's halo draws with its transparent pixels showing - and a
+        // golden that cannot see it cannot tell a parse that feeds the layer from one that does not.
+        // The bedrock spelling is kept, since that is what a pack author wrote and what a reader
+        // will search this file for; the folding to Java's three layers happens in the renderer,
+        // and its two divergences are recorded in the ledger rather than flattened here.
+        node.put("render_method", new JsonArray(b.resolveAll().stream()
+                .map(resolved -> (JsonValue) string(BlockModels.layerOf(
+                        BlockModels.materialsOf(resolved)).bedrockName()))
+                .toList()));
         unknown(node, b.unknown());
         return new JsonObject(node);
     }

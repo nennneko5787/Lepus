@@ -1,0 +1,26 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Lepus Conformance Render Method",
+    "description": "Blocks declaring render_method, which decides the chunk layer they draw on. Original content, authored for this project.",
+    "uuid": "5c00c1e0-0000-4000-8000-000000000301",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "5c00c1e0-0000-4000-8000-000000000302",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "resources",
+      "uuid": "5c00c1e0-0000-4000-8000-000000000303",
+      "version": [1, 0, 0]
+    }
+  ],
+  "metadata": {
+    "authors": ["Lepus"],
+    "license": "MIT"
+  }
+}

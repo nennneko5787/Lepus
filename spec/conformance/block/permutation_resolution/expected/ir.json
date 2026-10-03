@@ -169,6 +169,7 @@
                 "lightEmission": 15
               }
             ],
+            "render_method": ["opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque","opaque"],
             "resolved": [
               ["minecraft:friction","minecraft:destructible_by_explosion"],
               ["minecraft:friction","minecraft:destructible_by_explosion"],

@@ -1,0 +1,106 @@
+{
+  "diagnostics": [],
+  "packs": [
+    {
+      "behavior": {
+        "blocks": {
+          "sc_conformance:cutout_wheel": {
+            "components": ["minecraft:material_instances","minecraft:collision_box"],
+            "identifier": "sc_conformance:cutout_wheel",
+            "menuCategory": "construction",
+            "model": [null],
+            "permutations": [],
+            "physics": [
+              {
+                "collision": [4,0,4,12,1,12]
+              }
+            ],
+            "render_method": ["alpha_test"],
+            "resolved": [
+              ["minecraft:material_instances","minecraft:collision_box"]
+            ],
+            "stateCount": 1,
+            "states": []
+          },
+          "sc_conformance:silent_wheel": {
+            "components": ["minecraft:material_instances","minecraft:collision_box"],
+            "identifier": "sc_conformance:silent_wheel",
+            "menuCategory": "construction",
+            "model": [null],
+            "permutations": [],
+            "physics": [
+              {
+                "collision": [4,0,4,12,1,12]
+              }
+            ],
+            "render_method": ["opaque"],
+            "resolved": [
+              ["minecraft:material_instances","minecraft:collision_box"]
+            ],
+            "stateCount": 1,
+            "states": []
+          },
+          "sc_conformance:split_wheel": {
+            "components": ["minecraft:material_instances","minecraft:collision_box"],
+            "identifier": "sc_conformance:split_wheel",
+            "menuCategory": "construction",
+            "model": [null],
+            "permutations": [],
+            "physics": [
+              {
+                "collision": [4,0,4,12,1,12]
+              }
+            ],
+            "render_method": ["opaque"],
+            "resolved": [
+              ["minecraft:material_instances","minecraft:collision_box"]
+            ],
+            "stateCount": 1,
+            "states": []
+          }
+        }
+      },
+      "capabilities": [],
+      "dependencies": [],
+      "files": ["blocks/sc_conformance_cutout_wheel.json","blocks/sc_conformance_silent_wheel.json","blocks/sc_conformance_split_wheel.json","manifest.json"],
+      "formatVersion": 2,
+      "header": {
+        "baseGameVersion": "0.0.0",
+        "description": "Blocks declaring render_method, which decides the chunk layer they draw on. Original content, authored for this project.",
+        "minEngineVersion": "1.21.0",
+        "name": "Lepus Conformance Render Method",
+        "scope": "ANY",
+        "version": "1.0.0"
+      },
+      "id": "5c00c1e0-0000-4000-8000-000000000301",
+      "loadOrder": 0,
+      "modules": [
+        {
+          "declaredType": "data",
+          "type": "DATA",
+          "version": "1.0.0"
+        },
+        {
+          "declaredType": "resources",
+          "type": "RESOURCES",
+          "version": "1.0.0"
+        }
+      ],
+      "resource": {
+        "geometries": {}
+      },
+      "source": "pack",
+      "sourceKind": "DIRECTORY",
+      "subpack": {
+        "available": [],
+        "ceiling": 0,
+        "selected": false
+      },
+      "texts": {
+        "entries": {},
+        "languages": []
+      },
+      "unknownCapabilities": []
+    }
+  ]
+}

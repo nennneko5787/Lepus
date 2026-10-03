@@ -153,72 +153,59 @@ entries:
   - id: minecraft:material_instances
     status: partial
     impl: net.nennneko5787.lepus.core.format.ir.block.BlockModels
-    conformance: [block/geometry_transpile]
+    conformance: [block/geometry_transpile, block/render_method]
     fields:
       texture: ok
       instance_alias: ok
       per_face_instances: ok
-      render_method: missing
+      render_method: partial
       face_dimming: missing
       ambient_occlusion: missing
       tint_method: missing
       isotropic: missing
     fidelity: >-
-      Only the texture is read. Every block draws on the pipeline a plain block gets, so a block
-      declaring alpha_test or blend is opaque: a texture with transparent pixels shows black where it
-      should show through, and one with partial alpha shows none of it. That is the next thing to fix
-      in this entry and it is independent of geometry.
+      Only the texture is read into a MODEL, and the layer is a separate thing from the model:
+      a bound block remembers which layer it asked for and a client installs it. Before this, a
+      block declaring alpha_test or blend was opaque, because every block drew on the pipeline a
+      plain block gets. A face naming an instance the block does not declare falls back to `*`
+      rather than losing its texture, which is one typo costing nothing.
 
-      A face naming an instance the block does not declare falls back to `*` rather than losing its
-      texture, which is one typo costing nothing.
+      THE CAUSE WAS ESTABLISHED after being chased into the wrong subsystem twice, and it is worth
+      having in one place because the symptom is a PICTURE and not a hole. `render_method`
+      occurred zero times in the renderer. A real trophy declares `"render_method":
+      "alpha_test"` and ships an RGBA texture, and alpha is discarded by a shader DEFINE and not
+      by the shader: both `terrain.fsh` and `block.fsh` gate `discard` on `#ifdef
+      ALPHA_CUTOUT`. In 1.21.11 `CoreShaders` builds `pipeline/solid_block` with no such define
+      and a separate `pipeline/cutout_block` with `ALPHA_CUTOUT = 0.5f`, so a transparent halo
+      rendered as an opaque one - the shape was still recognisable, which is why it read as a
+      corrupt texture rather than a missing block, while the same block held in the hand was
+      correct because that path runs on `entity_cutout_no_cull`. Geometry and UV were both ruled
+      out on the way, and the geometry rule in this same file had been written against a symptom
+      its reporter later withdrew.
 
-      THE CAUSE IS NOW ESTABLISHED rather than described, and it is worth having in one place
-      because this symptom was chased into the wrong subsystem twice. `render_method` occurs zero
-      times in the renderer, which is the part that matters: 1.21.11 chooses a chunk layer per BLOCK
-      and has exactly three of them - SOLID, CUTOUT, TRANSLUCENT - and ours never asks for a
-      different one. A block declaring `alpha_test` therefore draws on `pipeline/solid_block`,
-      which carries no `ALPHA_CUTOUT` define, while `pipeline/cutout_block` (0.5f) exists and goes
-      unused; both `terrain.fsh` and `block.fsh` gate `discard` on that define and neither
-      discards on its own. A real trophy declares `"render_method": "alpha_test"`, ships an RGBA
-      texture, and renders a transparent halo as an opaque one - a wrong picture in a recognisable
-      shape, not a missing block - while the same block held in the hand is correct, because that
-      path runs on `entity_cutout_no_cull`. That asymmetry is the signature, and it is why the
-      cause is a render-type decision and not a UV or a geometry one; the geometry rule in the same
-      section was written against a symptom its reporter later withdrew.
+      **OBSERVED FIXED, on a 1.21.11 Fabric client, with a real trophy placed in a world.** The
+      halo draws with its transparent pixels showing. That is the ONLY claim in this entry backed by
+      a frame, and it is why the field is `partial` rather than `ok` - `ok` would also be a claim
+      about the three cases below, and it is not a claim about any of them.
 
-      THE IR READS IT NOW AND 1.21.11 DRAWS ON IT; 26.2 DOES NOT, and the ledger says which
-      loader rather than hiding it behind one field. `BlockModels.RenderMethod` carries all five
-      names Bedrock writes and `BlockModels.layerOf` collapses them to one answer, because a chunk
-      layer is a property of the block and a pack may declare two methods on one block. Two of the
-      five have no home in Java and are folded - `alpha_test_single_sided` into CUTOUT,
-      `double_sided` into SOLID - which is a divergence and is named as one here rather than
-      flattened away at parse time.
+      NOT FIXED, and each is a way this claim would be wrong:
 
-      ON 1.21.11 THE LAYER IS INSTALLED, on both loaders. Vanilla chooses it per BLOCK -
-      `ItemBlockRenderTypes.TYPE_BY_BLOCK`, a `Map<Block, ChunkSectionLayer>` defaulting to SOLID,
-      read by `getChunkRenderType(BlockState)` - and one Bedrock block owns exactly one pool block,
-      so the granularity matches without a second slot dimension. Fabric has a public
-      `BlockRenderLayerMap.putBlock`; NeoForge has no API at all and needs one injection into that
-      same method. THE CLIENT HAS TO KNOW THE BINDINGS TO INSTALL ANY OF IT, and today only a
-      server binds them: `BlockBinding.bindEnabled` runs from `onServerStarting`, so in single
-      player the client half is the same process and works, while a client connected to a
-      dedicated server computes an EMPTY layer set and draws every transparent block on SOLID.
-      That is the same gap `WorldActivation.known()` already records - the world's pack set lives
-      on the other end of the connection and this process has never seen it - and SC-270's
-      handshake is what will eventually close it. It is named here because a ledger that says
-      "installed on both loaders" and does not say "in single player" is the kind of sentence that
-      gets quoted to a user as a working feature. ON 26.2 THE LAYER IS DERIVED FROM THE PIXELS, not from the declaration, and the two
-      versions therefore fail in OPPOSITE directions. There is no `ItemBlockRenderTypes` there and
-      no `TYPE_BY_BLOCK` to write; `FaceBakery` hands the quad's own UV rectangle to
-      `SpriteContents.computeTransparency`, which scans the sprite's actual alpha inside it, and
-      `ChunkSectionLayer.byTransparency` maps translucent pixels to TRANSLUCENT and transparent ones
-      to CUTOUT. So a block declaring `alpha_test` with transparent texels draws on CUTOUT on 26.2
-      whether or not we do anything - the pack's declaration is not what puts it there, the RGBA
-      pixels are - and Fabric API dropped `BlockRenderLayerMap` because there is no longer a
-      producer side for it to call. What 26.2 gets WRONG is the reverse: a block declaring `opaque`
-      whose texture happens to contain alpha is drawn on CUTOUT anyway, because nothing consults the
-      declaration. That is the divergence, it is UNOBSERVED - every report about this halo came from
-      a 1.21.11 client - and it is read out of bytecode rather than off a frame.
+      - **a client connected to a dedicated server.** Binding runs from `onServerStarting`, so
+        the client computes an EMPTY layer set and draws every transparent block on SOLID. The
+        same gap `WorldActivation.known()` records; SC-270 handshake closes it.
+      - **26.2 takes the layer from the PIXELS, not from the declaration.** `FaceBakery` passes
+        the quad own UV rectangle to `SpriteContents.computeTransparency`, which scans the
+        sprite alpha inside it, and `ChunkSectionLayer.byTransparency` maps transparent pixels to
+        CUTOUT. An `alpha_test` block there is PREDICTED to be correct already, and what 26.2
+        gets WRONG is the reverse: a block declaring `opaque` whose texture contains alpha is
+        drawn on CUTOUT anyway. UNOBSERVED - no report about this halo has come from a 26.2 client.
+      - **`alpha_test_single_sided` and `double_sided` are folded** into CUTOUT and SOLID.
+        1.21.11 has three chunk layers and both methods ask for a fourth. The IR names them
+        before folding so the divergence is here rather than lost at parse time.
+
+      THE PARSER IS PINNED BY `block/render_method`, including the disagreement case: an instance
+      that declares nothing counts as opaque rather than as absent, because counting it as absent
+      would let one alpha_test face promote a block whose other faces are unaccounted for.
 
   - id: minecraft:map_color
     status: stub

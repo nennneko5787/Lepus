@@ -94,6 +94,7 @@
                 "lightEmission": 14
               }
             ],
+            "render_method": ["alpha_test","alpha_test"],
             "resolved": [
               ["minecraft:geometry","minecraft:material_instances","minecraft:collision_box"],
               ["minecraft:geometry","minecraft:material_instances","minecraft:collision_box","minecraft:light_emission"]

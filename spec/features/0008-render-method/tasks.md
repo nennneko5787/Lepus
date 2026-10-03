@@ -54,17 +54,18 @@
       プロセスなので効くが、**専用サーバーでは client は空の集合を計算して SOLID で描く**。
       `WorldActivation.known()` が既に記録しているのと同じ隙間。ledger に
       「両 loader で導入済み」とだけ書かない
-- [ ] **conformance `block/render_method` は renderer を入れてから書く。**
-      IR JSON は今 materials を直列化していないので
-      `ir.packs[0].behavior.blocks[...].materials.render_method` を assert する場が無い。
-      これを足すと既存 golden 11 件が全部動くが、それで得られるのは
-      「我々が書き出したものを検証するだけ」で、**何も証明にならない**。
-      §5.3.1 で出した失敗とまったく同じ構造。IR で assert できる有意思なものは
-      「どの chunk layer に乗るか」**ではなく画面**なので、renderer が入ってから書く。
-- [ ] `@SpecImpl("SC-150#minecraft:material_instances")`
-- [ ] coverage `render_method: ok`。entry は他フィールドが残るため `partial` のまま
-- [ ] `./gradlew specAll` green
-- [ ] **トロフィーをワールドに置いてハローの輪郭が透けることを確認**
+- [x] **実測済み（画面）** — 1.21.11 Fabric client でトロフィーをワールドに置き、
+      **ハローが透けて見えた**。`BlockRenderLayerMap.putBlock` の経路が実際に効いた
+- [x] conformance `block/render_method` を追加。IR に `render_method` を直列化して 3 block を
+      assert（alpha_test / 未宣言 / 食い違い）。**backfill と明記している** — process.md は
+      先に書けと言うが、答えが分かるまで書く意味がなかった
+- [x] coverage `render_method: missing → partial`。**OBSERVED と書いて、需要された** 3 つの
+      未修正を列挙した（専用サーバー / 26.2 の逆方向 / 2 つの折り畳み）
+- [x] `./gradlew specAll` green（12/12）
+- [ ] **1.21.11-neoforge で同じものを置く** — mixin は**一度も実行されたことがない**。
+      Fabric の経路だけが観測済み
+- [ ] **26.2 で置く** — 画素由来の予測が当たっているか。外れていたらバイトコード読みが
+      間違っていたことになる
 
 ## 導入側（client に layer を入れる。上の実装とは別）
 
