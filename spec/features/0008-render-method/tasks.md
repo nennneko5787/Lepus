@@ -47,8 +47,13 @@
       `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流す
 - [x] **26.2-fabric は同じ名前の空実装** — 「書けない stub」ではない。**26.2 は宣言を読まない**。
       画素から層が決まるので `alpha_test` は何もしなくても効く
-- [ ] **26.2 の逆方向の差**を実測する（`opaque` を宣言してMatchingに alpha が混ざった block が
-      CUTOUT に乗る 是否）。**画面に出るまで書かない**
+- [ ] **26.2 の逆方向の差**を実測する（`opaque` を宣言して texture に alpha が混ざった
+      block が CUTOUT に乗る 是否）。**画面に出るまで書かない**
+- [ ] **専用サーバーに繋いだ client では層が効かない**（既存の未実装の隙間、SC-270）。
+      binding は `onServerStarting` からしか走らない。single player では client 半分が同じ
+      プロセスなので効くが、**専用サーバーでは client は空の集合を計算して SOLID で描く**。
+      `WorldActivation.known()` が既に記録しているのと同じ隙間。ledger に
+      「両 loader で導入済み」とだけ書かない
 - [ ] **conformance `block/render_method` は renderer を入れてから書く。**
       IR JSON は今 materials を直列化していないので
       `ir.packs[0].behavior.blocks[...].materials.render_method` を assert する場が無い。

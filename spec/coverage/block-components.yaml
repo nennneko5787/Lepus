@@ -199,7 +199,15 @@ entries:
       read by `getChunkRenderType(BlockState)` - and one Bedrock block owns exactly one pool block,
       so the granularity matches without a second slot dimension. Fabric has a public
       `BlockRenderLayerMap.putBlock`; NeoForge has no API at all and needs one injection into that
-      same method. ON 26.2 THE LAYER IS DERIVED FROM THE PIXELS, not from the declaration, and the two
+      same method. THE CLIENT HAS TO KNOW THE BINDINGS TO INSTALL ANY OF IT, and today only a
+      server binds them: `BlockBinding.bindEnabled` runs from `onServerStarting`, so in single
+      player the client half is the same process and works, while a client connected to a
+      dedicated server computes an EMPTY layer set and draws every transparent block on SOLID.
+      That is the same gap `WorldActivation.known()` already records - the world's pack set lives
+      on the other end of the connection and this process has never seen it - and SC-270's
+      handshake is what will eventually close it. It is named here because a ledger that says
+      "installed on both loaders" and does not say "in single player" is the kind of sentence that
+      gets quoted to a user as a working feature. ON 26.2 THE LAYER IS DERIVED FROM THE PIXELS, not from the declaration, and the two
       versions therefore fail in OPPOSITE directions. There is no `ItemBlockRenderTypes` there and
       no `TYPE_BY_BLOCK` to write; `FaceBakery` hands the quad's own UV rectangle to
       `SpriteContents.computeTransparency`, which scans the sprite's actual alpha inside it, and
