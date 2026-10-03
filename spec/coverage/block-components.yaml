@@ -105,18 +105,22 @@ entries:
       Faces carry no cullface, so a face that could have been hidden by a neighbour is drawn. That
       costs a quad and cannot produce a hole; the reverse can.
 
-      Two things SC-150 section 5.3.1 and 5.3.2 added after a real trophy was placed in both
-      editions and came out wrong in one:
+      Two things SC-150 section 5.3.1 and 5.3.2 added after a real trophy came out wrong in one
+      client and right in another. NEITHER is a fix, and both say so:
 
-      A CUBE WITH NO THICKNESS on an axis is the rule that was got wrong first and refuted second.
-      §5.3.1 originally said to drop one of the flat axis's two faces, on the reasoning that two
-      coplanar quads fight over the depth buffer. That is the ATTACHABLE path's rule, where the
-      quads are built with culling off, carried over without asking whether the two paths behave
-      the same. Dropping `up` from a zero-height cube made a real trophy's halo disappear from the
-      world, so Minecraft's block model baker already resolves the degeneracy and resolves it by
-      drawing one of the pair. Both are emitted. 420 degenerate cubes were counted across the
-      surveyed packs and 14 axes' worth reach the 18 models Path A accepts, so this is the most
-      common shape in the corpus and the one most worth having measured rather than inferred.
+      A CUBE WITH NO THICKNESS on an axis emits both faces. A rule dropping one of them was written,
+      shipped and reverted, and the reason it was reverted is the reason this note is worded the way
+      it is. That rule was justified by a report that a real trophy's halo disappeared from the world;
+      the reporter later withdrew it - the halo never disappeared - and the August-versus-October
+      comparison behind it was not a comparison of Lepus at all, since the August instance ran under
+      VulkanMod, EMF, ETF, entityculling and Figura with two resource packs loaded. So §5.3.1 does not
+      claim what Minecraft's block model baker does with a degenerate element, because nobody has
+      watched it. Both faces are emitted because that is the cheap answer under stated ignorance: at
+      most one extra quad per degenerate axis, 14 of them across the 18 models Path A accepts, and 420
+      degenerate cubes in the surveyed packs make this the most common shape in the corpus. The
+      attachable path is the opposite and is not a copy of this one: it builds its own quads with
+      culling off (`entityCutoutNoCull`), so two coplanar quads really are submitted there and one has
+      to go.
 
       A BOX UV OUTSIDE THE TEXTURE is emitted as it stands, and that half is NOT fixed. Java reads
       uv as 0-16 across its own sprite, so 25 faces of 1230 sample off it — 11 at u<0, 10 at u>16, 6

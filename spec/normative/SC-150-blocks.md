@@ -311,37 +311,55 @@ lucky.
 | `mirror` | flips U | no counterpart; baked by swapping the face's two U coordinates |
 | `never_render` | bone draws nothing | no counterpart; the bone's cubes are dropped |
 
-#### 5.3.1 A cube with no thickness: both faces are emitted, and that is measured
+#### 5.3.1 A cube with no thickness: both faces are emitted
 
-**Path A emits BOTH faces of a zero-thickness axis, and this is an observation rather than a
-reasoning.** It is recorded here because the opposite rule was written, shipped and refuted by the
-world.
+**Path A emits BOTH faces of a zero-thickness axis.** The opposite rule was written, shipped, and
+then withdrawn — and the reason it was withdrawn is recorded below, because it is the more useful
+half.
 
 Bedrock models are full of such cubes. Eyes, hair strands, halos and skirt panels are all written as
 a box with a zero size on one axis — a **verified** count over the surveyed packs is 420 degenerate
 cubes, 14 axes' worth of which reach the 18 models Path A accepts. The obvious inference is that
 both faces of the flat axis should not be emitted, because two quads in the same plane fight over
-the depth buffer. That inference is **wrong here**, and it was made by carrying the attachable
-path's rule across without asking whether the two paths do the same thing.
+the depth buffer. That is the **attachable** path's rule, carried over here without asking whether
+the two paths draw the same thing.
 
-The measurement: dropping `up` from a zero-height cube made a real block's halo — a trophy's top
-plate, `size: [24, 0, 15]` — **disappear from the world entirely**. It had been visible before. So
-Minecraft's block model baker already resolves the degeneracy, and it resolves it by drawing one of
-the pair: `up` was the one being drawn, `down` was never visible, and there were never two coplanar
-quads to fight.
+**The two paths do not, and the difference is visible in this repository rather than in a frame.**
+`AttachableRenderTypes.solid()` returns `RenderTypes.entityCutoutNoCull` — culling is **off**, so
+there really are two coplanar quads submitted and one of them has to go; `AttachableGeometry.flatFace`
+is correct and stays. This path builds no quads at all. It writes a `from`/`to` pair into a block
+model and hands it to Minecraft's baker.
 
-**Why the two paths differ, and why that is not ours to reconcile.** The attachable path builds its
-own quads and draws with culling **off**, so both faces really are drawn there and dropping one is
-correct — `AttachableGeometry.flatFace` is right and stays. This path hands Minecraft a
-`from`/`to` pair and lets its baker decide, and it decides. Two halves of one project, written in
-one commit, needed opposite answers, and the only way to tell which was which was to put a block in
-the world.
+**What Minecraft's baker does with a degenerate element is NOT OBSERVED.** Whether it draws one of
+the pair, draws both and lets the rasteriser sort them, or discards one, is not recorded here because
+nobody has watched it. So this section does not claim to know.
 
-**The trap worth naming:** the failing change was small, principled, had a faithful port to copy, and
-passed every test in the corpus. Nothing in a unit test could have caught it, because the corpus
-contains no assertion about what Minecraft's baker does with a degenerate element — only about
-what this transpiler writes. `block/geometry_flat_cube` now asserts what is written, and the reason
-it exists is the opposite of the reason it was first written.
+**The rule is therefore the cheap answer under stated ignorance, not a measured one.** Emitting both
+faces of a flat axis costs at most one quad per degenerate axis — 14 axes across the 18 models Path
+A accepts, counted above — and that is the whole price of not knowing. Dropping a face cannot be
+cheaper than emitting it, and it is the only version of this decision that can be visibly wrong.
+`block/geometry_flat_cube` asserts what is written; the frame that would let this section say why is
+named in `TODO(SC-150)` at the end of the section.
+
+**What the October change actually rested on, since it was reverted.** A rule was added that dropped
+one of the pair, justified by a real trophy. That trophy's halo was reported as **disappearing from
+the world**, and the report is what made the rule look confirmed. **The reporter later withdrew the
+symptom**: the halo never disappeared. The August↔October comparison it rested on was not a
+comparison of Lepus at all — the August instance ran under VulkanMod, EMF, ETF, entityculling and
+Figura with two resource packs loaded, and the October one ran vanilla with only Fabric API — so
+"August was right" was never evidence about this code.
+
+This is the project's recurring failure in its smallest possible form, and it is worth reading twice
+because the rule was **not** the mistake. The rule was plausible, it had a faithful sibling to copy,
+and its justification was a sentence about a frame that had not been examined. **A rule with a frame
+behind it that nobody looked at is an unmeasured rule with better branding**, and constitution rule
+9 is the general form — a claim survives on evidence, not on how it reads.
+
+`TODO(SC-150)`: what Minecraft's block model baker does with a zero-thickness element. One trophy on
+a flat axis, in a world, with the baker's own output watched — whether it draws one of the pair, both
+of them, or drops one is what turns this section from "the cheap answer under ignorance" into a rule
+with a reason. Until then the ignorance is the specification and `BlockGeometryTest` asserts only
+that this file's choice is what the transpiler writes.
 
 #### 5.3.2 A box UV that leaves the texture
 
@@ -376,8 +394,8 @@ draw it at:
 
 So the only faces carrying `u < 0` are the four **zero-area** ones, and a face with no area draws
 nothing to be wrong about. This was checked because it was previously written down the other way
-round — as though the halo's disappearance were this defect — and a reader chasing that would be
-chasing a UV arithmetic problem for a symptom §5.3.1 accounts for completely.
+round — as though the trophy's halo were this defect — and a reader chasing that would be chasing a
+UV arithmetic problem for a symptom §5.3.1's withdrawn claim accounted for.
 
 **NOT OBSERVED: how Bedrock resolves a box UV that crosses the seam, and therefore what this
 transpiler should emit.** This is stated as an open question rather than a rule because the two
@@ -392,8 +410,8 @@ candidate answers are not equivalent and neither is verifiable from the packs:
 
 What is not in doubt is the diagnosis: a UV emitted outside 0–16 does not sample the pack's own texels
 on any Minecraft version. **What replaces it is decided by a measurement nobody has taken yet** — a
-Bedrock frame of a model whose box UV crosses the seam, the same way §5.3.1's flat-cube question was
-settled by looking rather than by reading.
+Bedrock frame of a model whose box UV crosses the seam. It is the same instrument §5.3.1's `TODO`
+asks for, and neither question is settled by the argument that settled the other one badly.
 
 Until that measurement exists, the honest entry state is `missing`, and the field says so.
 
