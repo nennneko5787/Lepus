@@ -61,6 +61,9 @@ public final class BlockLayerInstaller {
     public static void install() {
         Map<Block, ChunkSectionLayer> wanted = layers();
         BlockLayerLookup.install(wanted);
+        // THEN the loader. Filling the map cannot fail; pushing it is the loader's, and a mixin
+        // reading the map mid-push would see half of two worlds.
+        BlockLayerLookup.push();
         System.out.println("[Lepus] " + wanted.size()
                 + " bound block(s) on a chunk layer of their own");
     }

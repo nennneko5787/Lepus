@@ -43,7 +43,10 @@
       作り直すが**chunk mesh は作り直さない**ので、後だと何も変わらない
 - [x] `Lepus.poolRegistered()` — main menu では pool が無いが、それは正常。`blockPool()` が
       throw するのは「blocks が要るのに無し」な呼び出しの年到れ。空が正解の呼び出し用に用意
-- [ ] **Fabric 側** — `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流すだけ
+- [x] **Fabric 側** — `FabricBlockLayers`（`src/1.21.11-fabric/java`）が
+      `BlockLayerLookup.layers()` を `BlockRenderLayerMap.putBlock` に流す
+- [x] **26.2-fabric は同じ名前の空実装** — 「書けない stub」ではなく「ここに質問が無い」。
+      Fabric API の 25.3.2 に `BlockRenderLayerMap` が無いことを jar で確認済み
 - [ ] **26.2 側の経路**（下の「26.2 には map が無い」を読むこと）
 - [ ] **conformance `block/render_method` は renderer を入れてから書く。**
       IR JSON は今 materials を直列化していないので
@@ -72,21 +75,25 @@
 
 **loader ごとの差は 1 行 +/- mixin で，而且是 loader だけ:**
 
-- Fabric: `BlockRenderLayerMap.putBlock(poolBlock, ChunkSectionLayer.CUTOUT)` — **未実装**。
-  `BlockLayerLookup` に入れて流すだけなので 3 行
+- Fabric: `BlockRenderLayerMap.putBlock(poolBlock, ChunkSectionLayer.CUTOUT)` — **実装済み**
+      （`FabricBlockLayers`）。`BlockLayerLookup` に入れて流すだけなので 3 行
 - NeoForge: `ItemBlockRenderTypesMixin` — **実装済み**。`src/1.21.11-neoforge/java` に置き、
-  `src/1.21.11-neoforge/resources/lepus.mixins.json` を追加、`neoforge.mods.toml` に
-  `[[mixins]]` を**そのノードだけ**に付けた。`src/neoforge/resources` には置かない — 共有すると
-  class を持たないノードが壊れる（`required: true` は class 不在で launch を落とす）
+      `src/1.21.11-neoforge/resources/lepus.mixins.json` を追加、`neoforge.mods.toml` に
+      `[[mixins]]` を**そのノードだけ**に付けた。`src/neoforge/resources` には置かない — 共有すると
+      class を持たないノードが壊れる（`required: true` は class 不在で launch を落とす）
 - **26.2 には map が無い。** `ItemBlockRenderTypes` が 26.2 に存在しない。層は
   `BakedQuad.MaterialInfo.of(Material$Baked, Transparency, …)` が
   `ChunkSectionLayer.byTransparency(transparency)` で決める。**つまり 26.2 は「block → 層」ではない**。
   sprite の透過性から層が来る。
+  - **Fabric API も 26.2 では `BlockRenderLayerMap` を落としている**（25.3.2 の jar を確認）。
+    loader が両方 API を落としたので、これは 26.2 側の設計変更であって Fabric の欠落ではない
   - 26.2 の正解は生成した `.png.mcmeta` に `render_type` を書く経路か、sprite の Material を
     差し込む経路になる。**どちらも未検証**。`BlockBinding` は既に flipbook 用に `.png.mcmeta` を
     書いているので、そこに 1 項足す形が現実的 —— ただし**読んでから書くこと**
   - `ChunkSectionLayer` 自体は両版で `SOLID`/`CUTOUT`/`TRANSLUCENT` の 3 つで**同じ**。
     変わるのは「どの層かを決める場所」だけ
+
+**現状: 1.21.11 は両 loader で層が効く。26.2 は両 loader で未実装。**
 
 **粒度が合うのは pool の性質であって設計ではない。** 1 Bedrock block = 1 slot = 1 `PoolBlock` なので
 `Map<Block, ...>` でちょうど表現できる。slot を block 間で共有するようになったらこの feature は

@@ -29,11 +29,36 @@ import net.nennneko5787.lepus.core.api.SpecImpl;
 @SpecImpl("SC-150")
 public final class BlockLayerLookup {
 
-    /** What a client has not told us yet. Read as {@code SOLID} by everything that asks. */
+    /**
+     * The layer a client has not told us yet, and the one it has.
+     *
+     * <p>Held here rather than in the loader's own class so that the mixin on NeoForge and the
+     * registry call on Fabric read the same map, and so that {@link BlockLayerInstaller} can fill
+     * it without knowing which of the two is running. The alternative - each loader keeping its own
+     * set - is two copies of one decision, and the disagreement between them would be invisible
+     * until a pack with a transparent block was opened on one loader and not the other.
+     */
     private static volatile Map<Block, net.minecraft.client.renderer.chunk.ChunkSectionLayer> layers =
             Map.of();
 
+    /** The loader's own push, installed once at client init. Empty when there is no client. */
+    private static volatile Runnable pusher = () -> {
+    };
+
     private BlockLayerLookup() {
+    }
+
+    /**
+     * Hands the loader its own way of installing the set. Called once, from the loader's client
+     * entry point, and never on a hot path.
+     *
+     * <p>A {@link Runnable} rather than an interface because the two implementations share no
+     * signature to speak of: Fabric writes a map, NeoForge's mixin reads one. An interface here
+     * would have exactly one method with a name that fits neither of them.
+     */
+    public static void register(Runnable push) {
+        pusher = push == null ? () -> {
+        } : push;
     }
 
     /** The layer for a block, or empty for vanilla's answer of SOLID. */
@@ -48,6 +73,17 @@ public final class BlockLayerLookup {
         layers = Map.copyOf(wanted);
     }
 
+    /**
+     * Hands the set to the loader.
+     *
+     * <p>Separate from {@link #install} because the two halves fail differently. Filling the map
+     * is ours and cannot fail; pushing it is the loader's and must be called AFTER, or NeoForge's
+     * mixin would answer from the previous world's blocks while the new ones are being installed.
+     */
+    static void push() {
+        pusher.run();
+    }
+
     /** Forgets everything, so a client between worlds cannot answer with the last world's blocks. */
     public static void clear() {
         layers = Map.of();
@@ -56,5 +92,10 @@ public final class BlockLayerLookup {
     /** How many blocks are currently on a layer of their own. For a log line. */
     public static int size() {
         return layers.size();
+    }
+
+    /** The installed set. The loader's push reads this; nothing else should. */
+    static Map<Block, net.minecraft.client.renderer.chunk.ChunkSectionLayer> layers() {
+        return layers;
     }
 }

@@ -186,12 +186,24 @@ entries:
       cause is a render-type decision and not a UV or a geometry one; the geometry rule in the same
       section was written against a symptom its reporter later withdrew.
 
-      THE IR READS IT NOW; ONLY THE LAYER IS MISSING, and the field says missing for that reason.
-      `BlockModels.RenderMethod` carries all five names Bedrock writes and `BlockModels.layerOf`
-      collapses them to one answer, because a chunk layer is a property of the block and a pack may
-      declare two methods on one block. Two of the five have no home in Java and are folded -
-      `alpha_test_single_sided` into CUTOUT, `double_sided` into SOLID - which is a divergence and
-      is named as one here rather than flattened away at parse time.
+      THE IR READS IT NOW AND 1.21.11 DRAWS ON IT; 26.2 DOES NOT, and the ledger says which
+      loader rather than hiding it behind one field. `BlockModels.RenderMethod` carries all five
+      names Bedrock writes and `BlockModels.layerOf` collapses them to one answer, because a chunk
+      layer is a property of the block and a pack may declare two methods on one block. Two of the
+      five have no home in Java and are folded - `alpha_test_single_sided` into CUTOUT,
+      `double_sided` into SOLID - which is a divergence and is named as one here rather than
+      flattened away at parse time.
+
+      ON 1.21.11 THE LAYER IS INSTALLED, on both loaders. Vanilla chooses it per BLOCK -
+      `ItemBlockRenderTypes.TYPE_BY_BLOCK`, a `Map<Block, ChunkSectionLayer>` defaulting to SOLID,
+      read by `getChunkRenderType(BlockState)` - and one Bedrock block owns exactly one pool block,
+      so the granularity matches without a second slot dimension. Fabric has a public
+      `BlockRenderLayerMap.putBlock`; NeoForge has no API at all and needs one injection into that
+      same method. ON 26.2 NEITHER IS POSSIBLE: `ItemBlockRenderTypes` does not exist there and
+      Fabric API dropped `BlockRenderLayerMap` for it, because 26.2 derives the layer from the
+      SPRITE's transparency (`ChunkSectionLayer.byTransparency`) rather than from a per-block map.
+      A block declaring `alpha_test` on 26.2 is therefore still drawn opaque, and the fix belongs
+      to the sprite's metadata rather than to this mechanism.
 
   - id: minecraft:map_color
     status: stub

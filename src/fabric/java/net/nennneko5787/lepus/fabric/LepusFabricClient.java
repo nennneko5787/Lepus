@@ -23,5 +23,10 @@ public final class LepusFabricClient implements ClientModInitializer {
         // which is where Bedrock draws an attachable at all. Through a per-version file because
         // Fabric API renamed the callback at 26.2 — see FabricAttachableLayer.
         FabricAttachableLayer.register();
+        // The chunk layer a bound block's render_method asked for. Per-version, because Fabric API
+        // removed BlockRenderLayerMap for 26.2 - see FabricBlockLayers, whose 26.2 half is empty on
+        // purpose rather than unfinished. NeoForge's half is a mixin and needs no registration,
+        // because a mixin is applied at class load.
+        net.nennneko5787.lepus.client.FabricBlockLayers.register();
     }
 }
