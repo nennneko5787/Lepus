@@ -163,6 +163,83 @@ class BoneMatricesTest {
         assertPoint(pose.get("arm").transform(0, 24, -1), -1, 24, 0);
     }
 
+    /**
+     * <b>A bone's own declared rotation does NOT carry that bone's own animated position.</b>
+     * SC-180 §4.1.3, MEASURED by probe v20 on the Bedrock client.
+     *
+     * <p>This build had it the other way round — the declared rotation sat outside the animated
+     * offset and carried it — and <b>every other test in this file passed while it was wrong</b>,
+     * because a bind pose has no animation at all and a single bone is unrotated in most fixtures.
+     * That is the whole reason the case is here rather than left to the probe: the probe found it,
+     * nothing in this module could.
+     *
+     * <p>The rig is probe v20's: a bone declaring a quarter turn about Z, animated with an offset
+     * straight up, and a cube-less control bone with no declared rotation carrying the same offset.
+     * The control lands at the offset; the turned one must land there TOO, rotated in place.
+     */
+    @Test
+    void aDeclaredRotationDoesNotCarryTheSameBonesAnimatedPosition() {
+        GeometryIr model = parse("""
+                {
+                  "format_version": "1.12.0",
+                  "minecraft:geometry": [{
+                    "description": { "identifier": "geometry.sc" },
+                    "bones": [
+                      { "name": "turned", "pivot": [0, 0, 0], "rotation": [0, 0, 90] },
+                      { "name": "plain",  "pivot": [0, 0, 0] }
+                    ]
+                  }]
+                }""");
+        // The animation both bones get: 24 units straight up, no rotation of its own.
+        Mat4f offset = Mat4f.translation(0, 24, 0);
+        Map<String, Mat4f> pose = BoneMatrices.posed(model,
+                bone -> Optional.of(offset));
+
+        // UP, not sideways. The declared rotation turned the bone in place about the origin and
+        // the offset was added afterwards - which is the frame the Bedrock client drew.
+        assertPoint(pose.get("turned").transform(0, 0, 0), 0, 24, 0);
+        // It DID rotate: a point off the origin moves to where the quarter turn puts it. SC-180
+        // 3.4.1 negates the Z sense, so a declared [0,0,90] sends +X to -Y - which is why the
+        // expected y is 24-4 and not 24+4. Written out so a future reader does not "fix" it.
+        assertPoint(pose.get("turned").transform(4, 0, 0), 0, 20, 0);
+        // The control, which declares nothing, lands exactly where it always did.
+        assertPoint(pose.get("plain").transform(0, 0, 0), 0, 24, 0);
+    }
+
+    /**
+     * <b>And an ANCESTOR's transform still does carry it.</b> The other half of the same rule, and
+     * the one that must not move when the case above is fixed.
+     *
+     * <p>Probe v16 measured it for an animated parent rotation and probe v14 for a declared one.
+     * Both are about a transform on the LEFT, so a change to how one bone composes its own cannot
+     * reach them — and this asserts that rather than trusting it, because the two readings differ
+     * only in which bone the rotation is written on, which is exactly the kind of change that looks
+     * like a no-op.
+     */
+    @Test
+    void anAncestorsTransformStillCarriesTheChildsAnimatedPosition() {
+        GeometryIr model = parse("""
+                {
+                  "format_version": "1.12.0",
+                  "minecraft:geometry": [{
+                    "description": { "identifier": "geometry.sc" },
+                    "bones": [
+                      { "name": "arm", "pivot": [0, 0, 0], "rotation": [0, 0, 90] },
+                      { "name": "child", "parent": "arm", "pivot": [0, 0, 0] }
+                    ]
+                  }]
+                }""");
+        // The OFFSET goes to the child only. The parent's extra is identity: a rig that handed the
+        // same offset to every bone would be measuring two rules at once.
+        Map<String, Mat4f> pose = BoneMatrices.posed(model,
+                bone -> Optional.of(bone.name().equals("child")
+                        ? Mat4f.translation(0, 24, 0)
+                        : Mat4f.IDENTITY));
+
+        // The parent's quarter turn swings the child's offset SIDEWAYS, not up.
+        assertPoint(pose.get("child").transform(0, 0, 0), 24, 0, 0);
+    }
+
     @Test
     void aParentChainThatCyclesIsRefusedRatherThanFollowed() {
         // Following one inside a resource reload hangs the client. Refusing the model costs the

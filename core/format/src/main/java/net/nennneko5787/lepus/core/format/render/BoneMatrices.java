@@ -80,6 +80,21 @@ public final class BoneMatrices {
      * cubes keep the absolute coordinates the pack gave them. Treating the pivot as a translation
      * moves every cube to the pivot and is the single most common way to get this wrong.
      *
+     * <p><b>The animation's offset goes OUTSIDE every rotation the bone owns, the DECLARED one
+     * included.</b> SC-180 §4.1.3, measured: probe v9/v10 for the animation's own channels, probe
+     * v20 for the declared rotation, which this build used to get the other way round.
+     *
+     * <p><b>That one ordering is the whole rule, and the other four measured pairings cannot move
+     * because each of them is about an ANCESTOR.</b> An ancestor's own local transform still
+     * multiplies on the left, so a parent's rotation still carries a child's offset (probe v16),
+     * a parent's declared rotation still does (probe v14), and the wearer's transform still goes
+     * outside the pack's (probe v13 — it arrives as {@code driver · animated} inside this very
+     * product, so it stays to the left of the animated channels either way).
+     *
+     * <p><b>Wrong orderings here are invisible until a bone combines the two things at once.</b> A
+     * bind pose has no animation at all, so swapping them changes nothing in one; and the corpus
+     * only reaches it on a bone that declares a rotation <em>and</em> takes an animated position.
+     *
      * <p><b>The rotation order is Z, then Y, then X</b>, matching the order Java's own entity models
      * compose in — the format was Java's before it was Bedrock's. <b>Asserted, not verified.</b> A
      * bone turning about one axis is right whatever the order; only a bone turning about two at once
@@ -89,13 +104,13 @@ public final class BoneMatrices {
         Vec3f pivot = bone.pivot();
         Vec3f rotation = bone.rotation();
         Mat4f matrix = Mat4f.translation(pivot.x(), pivot.y(), pivot.z());
+        if (extra.isPresent()) {
+            // Outside the declared rotation, so an animated offset is not carried by it. The
+            // animation's own channels are already ordered translation-outermost inside `extra`.
+            matrix = matrix.times(extra.get());
+        }
         if (!rotation.isZero()) {
             matrix = matrix.times(rotate(rotation.x(), rotation.y(), rotation.z()));
-        }
-        if (extra.isPresent()) {
-            // Inside the pivot, so an animated joint swings about its own hinge rather than about
-            // the model's origin.
-            matrix = matrix.times(extra.get());
         }
         return matrix.times(Mat4f.translation(-pivot.x(), -pivot.y(), -pivot.z()));
     }
