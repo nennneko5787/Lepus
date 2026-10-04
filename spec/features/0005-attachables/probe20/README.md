@@ -90,9 +90,38 @@ m_ctrl  pivot [0,-24,0]  宣言回転なし        ← 必ず原点に着地す�
 
 ## 手順（統合版）
 
+`build/probes/lepus_probe20.mcaddon` を作る（**probe19 と同じ形**: 2 つの `.mcpack` をまとめた zip）:
+
+```
+$src=<repo>/spec/features/0005-attachables; $out=<repo>/build/probes
+Compress-Archive "$src/probe20/*"     "$out/probe20_rp.mcpack" -Force
+Compress-Archive "$src/probe20_bp/*"  "$out/probe20_bp.mcpack" -Force
+Compress-Archive "$out/probe20_rp.mcpack","$out/probe20_bp.mcpack" "$out/lepus_probe20.mcaddon" -Force
+```
+
 1. `lepus_probe20.mcaddon` を読み込み、**BP と RP 両方**を有効化
 2. `/give @s lepus:probe20`
 3. メインハンドに持って **三人称（F5）。視点は動きません**
+
+## 先に確認しておくこと — **probe20 の前提**
+
+この rig が問うのは **宣言回転が非ゼロの骨**だ。**`bag2` に宣言回転が無いなら
+この rig は盾とは無関係になる**（盾の答えではなく、法則の確認になるだけ）。
+HANDOFF と §4.2.6 は「`bag2` がまさにこれ」と書いているが、**それは実 pack をこの手で
+読んで確認したものではない**。`:testkit:survey` の **`geometry.` モードに DECLARED 表を
+追加した**ので、コーパスがあれば 1 コマンドで確かめられる:
+
+```
+./gradlew --project-dir core :testkit:survey "-Paddons=<container>,geometry.<盾の geometry id>"
+```
+
+`DECLARED` の表が各骨の **宣言された pivot と rotation** を出す（**0 の回転は
+`(no declared rotation)` と省略**）。**親のアニメ回転と区別するためにある** ——
+同じ骨に同じ回転が来ても、ジオメトリの宣言かアニメかで則が別**（SC-180 §4.2.3）**。
+
+**注意: 2026-10-05 時点で、この機械にコーパスは無かった**（`hoshino_onbu` を含む
+パックが見つからず、`Downloads` にあるのは別パック）。**実機セッション前にコーパスを
+置き直すこと。** 上の表には `leftArm2` の宣言回転と `bag2` の親も同じ画面に出てくる。
 
 ## 本実装の予測
 

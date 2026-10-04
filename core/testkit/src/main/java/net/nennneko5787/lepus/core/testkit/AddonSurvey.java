@@ -150,7 +150,43 @@ public final class AddonSurvey {
         lines.add(geometryId + ": " + geometry.bones().size() + " bones, "
                 + geometry.cubeCount() + " cubes, " + pose.size() + " posed"
                 + (animationName == null ? " (bind pose)" : " (" + animationName + " at t=0)"));
+        lines.addAll(declared(geometry));
         lines.addAll(extents(geometry, pose));
+        return lines;
+    }
+
+    /**
+     * Each bone's DECLARED pivot and rotation, before any animation.
+     *
+     * <p><b>This answers a question the extents below cannot.</b> "Which bones does the pack itself
+     * rotate, and by how much" is the input to every composition question in SC-180 section 4.2 - the
+     * difference between a bone's own declared rotation, a parent's declared rotation and a parent's
+     * ANIMATED rotation is three separate rules, and they are told apart by reading the geometry's
+     * {@code rotation} beside the animation's. A report that prints only where the cubes landed
+     * cannot separate them: a bone rotated by the model and a bone rotated by an animation arrive at
+     * the same numbers.
+     *
+     * <p>Bones whose declared rotation is zero are printed without one, because that is the common
+     * case and a column of zeros is how a real value gets lost in a wall of nothing. The parent is
+     * printed for the same reason the chain matters: which bone a rotation belongs to <em>relative
+     * to</em> is what decides whether it carries anything.
+     */
+    private static List<String> declared(GeometryIr geometry) {
+        List<String> lines = new ArrayList<>();
+        lines.add("");
+        lines.add("DECLARED - what the pack itself says, before any animation:");
+        lines.add("  a rotation here and a rotation in an animation are different rules");
+        lines.add("  (SC-180 4.2.3), so they have to be told apart here.");
+        for (var bone : geometry.bones()) {
+            StringBuilder line = new StringBuilder(String.format(java.util.Locale.ROOT,
+                    "  %-12s parent %-12s pivot [%6.2f,%6.2f,%6.2f]",
+                    bone.name(), bone.parent().orElse("-"),
+                    bone.pivot().x(), bone.pivot().y(), bone.pivot().z()));
+            line.append(bone.rotation().isZero() ? "  (no declared rotation)"
+                    : String.format(java.util.Locale.ROOT, "  rotation [%6.2f,%6.2f,%6.2f]",
+                            bone.rotation().x(), bone.rotation().y(), bone.rotation().z()));
+            lines.add(line.toString());
+        }
         return lines;
     }
 

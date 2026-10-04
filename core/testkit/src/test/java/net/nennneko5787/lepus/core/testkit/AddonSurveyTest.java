@@ -249,6 +249,73 @@ class AddonSurveyTest {
               }
             }""";
 
+    /**
+     * <b>A declared rotation and an animated one are different rules, and a report that prints only
+     * where the cubes landed cannot tell them apart.</b>
+     *
+     * <p>This is the shape of the shield question. The corpus's {@code leftArm2} carries a declared
+     * roll, its idle animation and its {@code .hand} animation add two more, and the shield hangs off
+     * it — and SC-180 §4.2.3 gives a separate rule for each of those three sources. Deciding which
+     * one is responsible means reading the geometry's {@code rotation} beside the animation's, which
+     * is only possible if both are reported.
+     *
+     * <p>Both bones below end up in the SAME place, which is the point: {@code turned} is rotated by
+     * the model and {@code swung} by an animation, they carry the same offset, and their extents are
+     * indistinguishable. Only the declared table tells them apart.
+     */
+    @Test
+    void aDeclaredRotationIsDistinguishableFromAnAnimatedOne(@TempDir Path root)
+            throws IOException {
+        Path pack = root.resolve("rig");
+        Files.createDirectories(pack.resolve("models/entity"));
+        Files.createDirectories(pack.resolve("animations"));
+        Files.writeString(pack.resolve("manifest.json"), MANIFEST);
+        Files.writeString(pack.resolve("models/entity/rig.json"), TWO_ROTATIONS);
+        Files.writeString(pack.resolve("animations/rig.json"), ANIMATION_ROTATES);
+
+        String report = String.join("\n",
+                AddonSurvey.poseReport(root, "geometry.rig", "animation.rig.swing"));
+
+        // The declared rotation is reported against the bone that declares it...
+        assertTrue(report.contains("turned") && report.contains("90.00"), report);
+        // ...the animated bone reports none, because the pack declared none...
+        assertTrue(report.lines().anyMatch(line -> line.contains("swung")
+                && line.contains("no declared rotation")), report);
+        // ...and the parentage is reported, since which bone a rotation belongs to RELATIVE TO is
+        // what decides whether it carries anything.
+        assertTrue(report.contains("parent root"), report);
+    }
+
+    private static final String TWO_ROTATIONS = """
+            {
+              "format_version": "1.16.100",
+              "minecraft:geometry": [{
+                "description": { "identifier": "geometry.rig",
+                                 "texture_width": 16, "texture_height": 16 },
+                "bones": [
+                  { "name": "root", "pivot": [0, 0, 0] },
+                  { "name": "arm", "parent": "root", "pivot": [0, 0, 0],
+                    "rotation": [0, 0, 90] },
+                  { "name": "turned", "parent": "arm", "pivot": [0, 0, 0],
+                    "cubes": [ { "origin": [0, 0, 0], "size": [2, 2, 2], "uv": [0, 0] } ] },
+                  { "name": "swung", "parent": "arm", "pivot": [0, 0, 0],
+                    "cubes": [ { "origin": [0, 0, 0], "size": [2, 2, 2], "uv": [0, 0] } ] }
+                ]
+              }]
+            }""";
+
+    /** The same quarter turn as {@code arm}'s declared one, arriving from an animation instead. */
+    private static final String ANIMATION_ROTATES = """
+            {
+              "format_version": "1.8.0",
+              "animations": {
+                "animation.rig.swing": {
+                  "loop": "hold_on_last_frame",
+                  "bones": { "swung": { "rotation": [0, 0, 90] } }
+                }
+              }
+            }""";
+
     private static String attachable(String name, String animation) {
         return """
                 {

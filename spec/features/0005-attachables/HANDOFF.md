@@ -83,7 +83,19 @@ lepus:probe20 as geometry.lepus_probe20, third person, main hand, t=0
 - **`spec/normative/**` は 1 バイトも変更していない**（§4.2.6 を含む）。
 - `spec/coverage/rp-attachables.yaml` に**追記のみ**（v20 が作られ、実機のフレームを待っている旨）。
   生成物 `docs/compatibility/**` は `specReport --write` で再生成（手で編集しない）。
-- `./gradlew specAll` 緑、`./gradlew --project-dir core build` 緑。**Java の変更はゼロ**
+- `build/probes/lepus_probe20.mcaddon` を作るコマンドを `probe20/README.md` に書いた
+  （probe19 と同じ形。**README が `.mcaddon` を読み込めと書いていたので `.mcaddon` そのものを
+  用意してなかった**）。生成物は `build/` なので commit しない。
+- `:testkit:survey` の **`geometry.` モードに DECLARED 表を追加**（各骨の宣言された
+  pivot と rotation、0 は省略）。**これは盾の診断の前提を 1 コマンドで確かめるため**:
+  **rig は宣言回転が非ゼロの骨を問うので、`bag2` に宣言回転が無いなら盾と無関係になる。**
+  既存の extents だけだと `leftArm2` の宣言回転と `idle` / `.hand` のアニメ回転が区別できず、
+  §4.2.3 の 3 つの則のうちどれが効いたかが分からない。テスト 1 件を追加
+  （`AddonSurveyTest.aDeclaredRotationIsDistinguishableFromAnAnimatedOne` — 同じ位置に
+  到着する 2 つの骨を区別できること）。
+- **この機械にはコーパスが無い**（2026-10-05 時点）。`Downloads` にある `.mcaddon` は
+  `hoshino_onbu` を含まない別パック。**実機セッションの前にコーパスを置き直すこと。**
+- `./gradlew specAll` 緑、`./gradlew --project-dir core build` 緑。**spec の変更はゼロ**
   なので 4 ノードの再コンパイルは不要。
 
 ## 訂正 — 「§3.4.4 の standing decision」という指し方
