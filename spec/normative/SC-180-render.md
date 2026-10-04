@@ -897,6 +897,20 @@ which does the same thing at a single instant — is the form these packs would 
 scale turn and size the bone IN PLACE about its pivot.** The translation is outermost, exactly as
 this build always had it before one afternoon's excursion.
 
+**And "outermost" reaches further than the animation's own three channels — it is outermost of the
+bone's own rotations, the DECLARED one included.** The geometry may declare
+`"rotation": [0,0,90]` on a bone that an animation then moves with `position [0,24,0]`, and the
+declared rotation does **not** carry that offset: the bone rotates in place and the offset is added
+afterwards, so the marker stands straight up rather than swinging sideways. MEASURED, probe v20.
+
+**This build had it the other way round and was wrong**, which is the reason the sentence above says
+"outermost" and not "outermost within one bone's animation". `BoneMatrices.local` composed
+`T(pivot) · R_declared · (T_anim · R_anim · S_anim) · T(-pivot)`, so the declared rotation sat
+**outside** the animated position and carried it — an error that no bind pose can show, because a
+bind pose has no animation, and one that the corpus never reaches on a bone it happens not to
+combine. **The other four pairings in §4.2.3 are untouched by the fix**, because each of them is
+about an ANCESTOR's transform, and an ancestor still multiplies on the left:
+
 **This is now a measurement, not a reading of prose.** Probe v9
 (`spec/features/0005-attachables/probe/`, 100 % original content, a behaviour-pack item so the
 attachable actually runs) split the corpus's heaviest keyframe — `rotation [0,-85,0]`,
@@ -1083,9 +1097,18 @@ child's offset — which is not a contradiction, because the two questions are a
 | pairing | carries? | decided by |
 |---|---|---|
 | own animation rotation → own position | **no** | probe v9/v10 |
+| own **declared** rotation → own position | **no** | **probe v20** |
 | **parent's animation rotation → child's position** | **yes** | **probe v16** |
 | parent's declared rotation → child's position | yes | probe v14 |
 | wearer's transform → pack's position | yes, and goes **outside** | probe v13 (§4.2.2) |
+
+**The two rows that answer "no" are the same rule**, and the two that answer "yes" are a different
+one: **a bone's own rotations never carry its own animated offset, and any ANCESTOR's transform
+does.** `BoneMatrices.local` states it as a single composition,
+`T(pivot) · T_anim · R_anim · S_anim · R_declared · T(-pivot)` — the animated offset applied outside
+every rotation the bone itself owns — with each ancestor's own local transform multiplying it on the
+left. That is why probe v20's correction moved one line and left the other four measurements exactly
+where they were.
 
 ### 4.2.4 Which face of a flat cube gets drawn: a transparent rectangle is not a back-facing one
 
@@ -1176,11 +1199,27 @@ perceptibly. **Not a fitted constant: derived from the gap it has to beat.**
 **This is the last thing the composition work did not explain, and it is recorded here rather than
 fixed, because the fix that would be obvious is the one §3.4.4 forbids.**
 
+**One of the four unmeasured pairs has now been measured — probe v20, `above` — and it is the
+wrong way round for this build.** A bone's own declared rotation does **not** carry its own animated
+position (§4.1.3), and the corpus's shield is exactly that pairing: `bag2` carries a declared
+rotation and a `.hand` `position [0,1,1]`. **This build had been carrying it**, and the correction
+lands in the same order of magnitude as the residual this section is about — an offset of `[0,1,1]`
+rotated or not differs by well under `√2` units, and the residual was measured at **2 to 3 units**.
+
+**That is a reason to re-measure, not a claim that it is the cause.** Three things are not settled:
+
+| | |
+|---|---|
+| the attribution table below | was taken with the **wrong** composition, so its numbers are stale and must be re-taken rather than adjusted |
+| the 83 % term | is `leftArm2`'s **animation** rotation carrying a child's position — the **parent** rule, which probe v20 did **not** change. **The large term is untouched.** |
+| whether it lands | needs the corpus, which is not in this repository. **A residual is not closed by a rule that could explain it.** |
+
 Six rules are now measured, and the build matches every one of them:
 
 | rule | decided by |
 |---|---|
 | a bone's own three channels are independent, translation outermost | probe v9/v10 |
+| **the bone's own DECLARED rotation does not carry its own animated position either** | **probe v20** |
 | **a parent's animation rotation carries its child's animation position** | probe v16 |
 | a parent's declared rotation carries it | probe v14 |
 | the wearer's transform composes **outside** the pack's | probe v13 (§4.2.2) |
@@ -1200,7 +1239,11 @@ Six rules are now measured, and the build matches every one of them:
 against the engine.
 
 **Two readings remain and neither has been taken.** Either a rule still exists that no probe has
-asked about, or this is a sub-block residual. **What is needed next is a probe, not a constant** —
+asked about, or this is a sub-block residual. **What is needed next is a probe, not a constant**
+(§4.2.6's own standing decision, and §4.2.1's five refitted constants) — and the second unmeasured
+pair, a bone's own declared rotation against its own ANIMATED rotation, has been shown **not to be
+askable**: with a roll bind and a yaw animation the two orders give `(0, 24 cos a, -24 sin a)` and
+`(0, 24, 0)`, both pointing up and differing only in depth.
 and the question to put to one is narrow: *given a parent whose rotation reaches a large net roll, and
 a child carrying a position along the axis that roll turns, is the child's displacement amplified the
 way the two rules above jointly say it is, or is it composed some third way?* v16 answered the
