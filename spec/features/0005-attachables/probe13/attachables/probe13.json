@@ -1,0 +1,14 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "lepus:probe13",
+      "materials": { "default": "entity_alphatest" },
+      "textures": { "default": "textures/blocks/wool_colored_red" },
+      "geometry": { "default": "geometry.lepus_probe13" },
+      "animations": { "hand": "animation.lepus_probe13.pos" },
+      "scripts": { "animate": [ "hand" ] },
+      "render_controllers": [ "controller.render.item_default" ]
+    }
+  }
+}

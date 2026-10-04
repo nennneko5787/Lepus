@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Lepus parent-transform probe (resource half)",
+    "description": "Reads, on a Bedrock frame: whether a bone's ANCESTOR rotation and scale carry that bone's own animation position.",
+    "uuid": "1f7c3a90-5d24-4e18-9b62-7a0c8e150e81",
+    "version": [17, 0, 0],
+    "min_engine_version": [1, 20, 50]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "1f7c3a90-5d24-4e18-9b62-7a0c8e150e82",
+      "version": [17, 0, 0]
+    }
+  ]
+}

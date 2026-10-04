@@ -81,6 +81,62 @@ class AttachablePoserTest {
         return pose.get("root").transform(0f, 0f, 0f);
     }
 
+    private static float[] at(AttachablePoser poser, Map<String, Mat4f> skeleton) {
+        Map<String, Mat4f> pose =
+                poser.at(new Playback(), AttachableContext.thirdPerson(true), skeleton);
+        return pose.get("root").transform(0f, 0f, 0f);
+    }
+
+    /**
+     * <b>The wearer's transform goes OUTSIDE the pack's.</b> SC-180 §4.2.
+     *
+     * <p><b>MEASURED, probe v13, and it is the other way round from what this used to assert.</b>
+     * The wearer's contribution is <em>written</em> as an animation — vanilla's first-person
+     * {@code base_pose} is one — and from that it was concluded that it belongs in the pack's
+     * channel stack, translation outermost. It does not: it has no blend, no clock and no
+     * channels, and it is composed after the pack's are summed into one transform. So the pack's
+     * position goes <em>inside</em> the wearer's rotation.
+     *
+     * <p><b>Why it took four probes and not one argument.</b> A half turn about Y negates Z, so the
+     * two orders put a pack's {@code position} on opposite sides, and the corpus's {@code .hand}
+     * writes exactly that: {@code position [0,-1,-6]} onto the cube-less {@code body} its character
+     * hangs off by. Third person cannot tell the orders apart — the wearer's transform is ~identity
+     * there, which is exactly why this stayed wrong while the corpus looked fine. v11 and v12
+     * settled the parent-to-child hierarchy and both matched the build, which is what left this as
+     * the only rule left that no probe had covered.
+     *
+     * <p>v13 is one bar: a bone named {@code body}, so a wearer drives it, carrying
+     * {@code position [0,0,-24]} and no animation of its own. Third person put it at
+     * <b>z −24</b> either way; first person put it at <b>z +24</b> — out of sight behind the camera,
+     * which is the report that decided it. Asserted on the sign, because the sign is the whole
+     * difference and a distance assertion would pass for a reason that is not this one.
+     */
+    @Test
+    void theWearersTransformIsOutsideThePacks() {
+        Map<String, Mat4f> halfTurn = Map.of("root", Mat4f.rotationY(180.0f));
+        float[] at = at(new AttachablePoser(geometry(), List.of(Map.entry(moving("root", "[0, 0, -24]"),
+                Optional.empty())), List.of()), halfTurn);
+        // 180 about Y negates Z. Translation INSIDE the rotation lands at -24; outside it lands
+        // at +24. Bedrock showed the bar out of sight BEHIND the camera, which is +24.
+        assertEquals(24.0f, at[2], EPSILON,
+                "the wearer's half turn carries the pack's position, so -24 arrives as +24");
+    }
+
+    /**
+     * <b>MEASURED: probe v11 said no, and v11 was asking the wrong bone.</b>
+     *
+     * <p>v11 asked whether a parent's rotation carries a child's animation position, and answered
+     * that it does not — which contradicted v9's ordering and looked like the piggybacking
+     * character's head displacement. It was a false negative: v11 put the parent's quarter turn in
+     * the <em>geometry</em>'s declared rotation, which is not the path the corpus takes. The corpus's
+     * {@code root2} turn comes from an <em>animation</em>. v12 asked the same question through that
+     * path and the answer matched the build on all three readings.
+     *
+     * <p>Kept because "a probe that says no and turns out to have asked about something else" is a
+     * result, and the only thing that stops it being re-run and believed is the record of why the
+     * geometry's declared rotation is a different question from the animation's.
+     */
+
     /**
      * <b>An animation's {@code position} reaches the bone unchanged, X included.</b> SC-180 §3.6.
      *

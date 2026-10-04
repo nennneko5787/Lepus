@@ -261,10 +261,20 @@ had to come out.** The premise was wrong: the two views are not the same space.
 
 | | |
 |---|---|
-| origin | the eye, so Bedrock's y 0 is the player's own **eye height** below it — read per frame, since a crouching player's eye drops |
+| origin | the eye, so Bedrock's y 0 is **the player's standing** eye height (1.62) below it — a **constant**, and the constancy is measured; see below |
 | axes | `diag(-1, +1, +1) / 16`, Bedrock units to camera units |
 | rotation | **none**. Camera space is left as it is |
 | scale | **nothing from the third-person pass**, and one number written out by hand — see below |
+
+**The origin row used to say "read per frame, since a crouching player's eye drops", and that was
+refuted.** It reads well — a crouched player's eye is lower, so a model pinned to a constant would sink
+with them — and it is what this build did. The reported symptom was that premise coming true in the
+wrong place: **crouching threw the whole character 0.35 blocks up the screen, here, while the Bedrock
+client moves nothing at all.** The engine's first-person attachable is anchored to the **player**, not
+to the camera that happens to be looking at it, so a camera that drops with the crouch must not drag
+the character with it. The constant is `AttachableSpace.STANDING_EYE_HEIGHT`, which already existed and
+already documented itself as "the value for a player standing still". **A crouched player's eyes
+being lower is a fact about the camera; it is not a fact about where the character is.**
 
 **The scale is the one row with no measurement behind it.** First person is not the player's space,
 so nothing in its pass supplies a scale, and the implementation multiplies by the 0.9375 a player
@@ -943,42 +953,63 @@ cube-less `root`, `waist` and `body` bones.
 | view | a bone both name |
 |---|---|
 | third person | **composes** — the pack's pose stands, the wearer's transform goes outside it |
-| first person | **DISPUTED — this document says *replaces*, the build composes.** See below |
+| first person | **composes** — the same, and measured; see §4.2.2 |
 
 Third person composing is what makes a halo work: the ring hangs off a `head` the wearer turns, and
 the pack is free to pose it as well.
 
-**The first-person row contradicts the build, and so does this document.** §4.2.1 below describes the
-opposite behaviour in the same words — "the corpus's `body [0,-1,-6]` still pushes forward underneath
-it" — so the two sections of this file disagree with each other as well as with the code. Whoever
-resolves this, resolve it in both places at once.
+**This used to contradict the build, and so did this document.** §4.2.1 below described the opposite
+behaviour in the same words — "the corpus's `body [0,-1,-6]` still pushes forward underneath it" — so
+the two sections disagreed with each other as well as with the code. **Resolved in both places, as that
+paragraph itself instructed**: both views compose, and the wearer's transform goes outside. §4.2.2
+records the frame.
 
-As committed, `AttachablePoser` composes in **both** views: the wearer's transform is merged into the pack's as
-`pack × wearer`, per bone, with the pack's translation outermost. There is no replacement path in the
-render code at all — the only `replace` in the tree is the attachment snapshot swap and a docstring.
+`AttachablePoser` composes in **both** views. There is no replacement path in the render code at all —
+the only `replace` in the tree is the attachment snapshot swap and a docstring. **The wearer's
+transform is composed OUTSIDE the pack's**, as `wearer × pack` per bone: the pack's `position` is
+applied **inside** the wearer's rotation, not after it.
 So a pack that writes `position [0, -1, -6]` onto a cube-less `body` **does** move the whole
 character 0.375 blocks toward the camera in first person, and the survey says so: the corpus's
 body-parented character comes out at `z -1.59 .. -0.53` blocks, in front of the eye.
 
-**Both positions are argued from the same data point and they contradict each other.**
+**Both positions were argued from the same data point and they contradicted each other.**
 
-| | argues |
+| | argued |
 |---|---|
 | this section, as written | a Bedrock capture shows her head is **not** in front of the camera, so the pack's pose of `body` must be discarded in this view |
 | `AttachablePoser`'s own docstring | that same `[0, -1, -6]` is **what carries her head in front of the camera instead of behind it**, and replacing it "left the head entirely behind the near plane, which on screen is a character with no head at all" |
 
-Both cannot be right, and the section's evidence is of the kind this project has been burned by
-repeatedly — *a claim about a frame*, with the frame itself unexamined, arguing for a 0.375-block
-placement. **The build's current behaviour is a third thing, chosen for the reason in its docstring
-and never checked against a Bedrock first-person frame of this character.** Under the constitution
-this paragraph is normative and the build is therefore non-conformant; but conformant to a claim
-whose evidence is an unexamined frame would be worse than the present state, and quietly deleting
-the row would leave the next reader with no way to know the question is open.
+Both were the kind of claim this project has been burned by repeatedly — *an assertion about a frame*,
+with the frame itself unexamined, arguing over a 0.375-block placement — and **the build was a third
+thing again, composed in both views and with the wearer's transform on the wrong side of the
+multiplication.** **All three were wrong about the same thing and none of them had been measured.**
 
-**So it stays open, and it is worth 0.375 blocks in one view.** What settles it is one frame: the
-same character, same hand, pitch matched (§3.4.2), in both clients, and the answer is whether her
-head is nearer the camera here than the offline survey puts it. A survey number cannot settle it —
-the survey runs this build.
+**The first-person row is now MEASURED, and it is the same answer as the third.** Probe v13 (§4.2.2)
+settled the part that was open — which side of the multiplication — on a Bedrock frame, and both
+views **compose**.
+
+**It was composed all along, and what was wrong was the order.** The row above used to say "replaces"
+and the code said "composes", the code's own docstring argued for a third thing, and the two halves
+of this section contradicted each other over one 0.375-block claim neither had measured. All three
+are now one statement, and the argument is gone:
+
+> A bone both the pack and the wearer pose **composes**, and the wearer's transform goes **outside**
+> the pack's.
+
+**Which side matters, and only one way of telling.** A half turn about Y negates Z, so the two
+orders put a pack's `position` on opposite sides of it — and the corpus's `.hand` writes exactly
+that, `position [0,-1,-6]` onto the cube-less `body` its character hangs off by. **Third person
+cannot tell the two apart**: the wearer's transform is ~identity there. That is precisely why this
+survived while the corpus looked correct, and why four probes were needed to reach it.
+
+**§4.1's "translation outermost" does not reach across.** That rule is about one bone's own three
+channels, and it is measured (v9). The wearer is not another entry in that stack — it has no blend,
+no clock and no channels, and it is composed *after* the pack's have been summed into one
+transform. **Reading the two as one rule is what produced the bug**, and the way to tell them apart
+is that one is per-bone and the other is per-frame.
+
+**Composing both views is what makes a halo work**, and it is what keeps the pack's own pose of a
+wearer bone from being thrown away.
 
 **"The wearer drives them" is about which bones EXIST for the wearer to drive.** Who wins them is
 this table, and it is passed per call site rather than decided inside the poser, because the two
@@ -989,6 +1020,196 @@ recording**: a Java `ModelPart` carries an absolute position, not a displacement
 rest at the origin. `rightArm` sits at `(-5, 2, 0)` when the player stands, so feeding its position
 in as a displacement would throw every arm-bound attachable five units sideways — the binding needs
 each part's rest position subtracted first.
+
+#### 4.2.2 What probe v13 measured, and what it cost to get there
+
+**One bar.** A bone named `body` — so a wearer drives it, which is the condition under test — carrying
+`position [0,0,-24]` and no animation of its own, beside a control bone no wearer drives.
+
+| view | reading | says |
+|---|---|---|
+| third person | z **−24**, either way | the animation's position is read correctly; the wearer's transform is ~identity, so **the order is invisible here** |
+| first person | z **+24** — the bar was **out of sight behind the camera** | the pack's position is composed **inside** the wearer's rotation |
+
+The second row is the whole of it. Translation inside lands at −24 and the bar floats a block and a
+half in front of the eye; translation outside lands at +24 and it is behind the near plane. **Nothing
+between those two readings is a matter of degree.**
+
+**Three probes were spent before this one asked the right question, and the first two are worth the
+space because both looked conclusive:**
+
+| | asked | answered | verdict |
+|---|---|---|---|
+| v11 | does a parent's rotation carry a child's animation position? | **no** | **false negative** — the parent's quarter turn was written in the *geometry's* declared `rotation`, which is not the path the corpus takes; its `root2` turn comes from an *animation* |
+| v12 | the same question, through the animation path | yes, and scale too | ✓ all three readings matched the build |
+| v13 | how do the pack's channels and the **wearer's** transform compose | rotation outermost | **the bug** |
+
+**The v11 → v12 correction is the transferable part.** A probe answers the question it was built to
+ask, and writing the parent's transform into the geometry rather than into an animation produced a
+confident, wrong, perfectly-reproducible number. **The rig has to take the path the corpus takes**, or
+the answer is about a mechanism nothing else uses.
+
+#### 4.2.3 A parent's ANIMATION rotation carries its child's animation position — MEASURED, v16
+
+**v12 and v14 asked this and answered it both ways. It is settled, and it took a fourth rig.**
+
+| | rig | asked | answer |
+|---|---|---|---|
+| **v12** | the parent's 90° comes from an **animation** | does it carry the child's animation position? | **carried** |
+| **v14** | same mechanism, three bars, each compared to a fixed one | the same | **not carried** |
+| v15 | three bars of **different shapes** (rod / block / cube) | the same | **unreadable** — the reader's two descriptions of the same frame disagreed with each other |
+| **v16** | **roll** 90° and an offset of `[0,24,0]`, so the answer is **up or sideways** | the same | **carried** |
+
+**Two rigs were broken in ways that look like answers.**
+
+- **v12's question could not be answered as posed.** It asked the reader to compare the **second bar
+  with the first**. Under the reading where the parent's rotation does **not** carry, those two land in
+  completely different places and **"the second one from the top" stops being a thing that exists**. A
+  question phrased in terms of an ordering is only answerable if every candidate answer preserves the
+  ordering — a property of the rig, not of the engine.
+- **v14 and v15 asked a depth question of a third-person camera**, where a bar along Z and a bar along
+  X are told apart only by how much they foreshorten. **Depth direction is the one thing a
+  third-person frame is worst at**, and the two descriptions that disagreed were the same frame.
+
+**v16 removed the depth from the question entirely** by rotating about Z, so the two candidate answers
+are **up** and **sideways** — readable from any camera, at any distance, with no judgement call. The
+slab came out **sideways**, which is `carried`, which is what this build already does.
+
+**What makes the rule worth stating separately.** Within one bone the channels are independent and the
+translation is outermost (§4.1.3, measured). Across bones the parent's rotation **does** carry the
+child's offset — which is not a contradiction, because the two questions are about different frames:
+§4.1.3's is *the bone's own three channels*, this is *an ancestor's transform applied to a descendant*.
+
+| pairing | carries? | decided by |
+|---|---|---|
+| own animation rotation → own position | **no** | probe v9/v10 |
+| **parent's animation rotation → child's position** | **yes** | **probe v16** |
+| parent's declared rotation → child's position | yes | probe v14 |
+| wearer's transform → pack's position | yes, and goes **outside** | probe v13 (§4.2.2) |
+
+### 4.2.4 Which face of a flat cube gets drawn: a transparent rectangle is not a back-facing one
+
+**Every character in the corpus carries a halo that this build did not draw at all, and both of the
+corpus's characters declare theirs identically** — `size: [12, 0, 10]` at `uv: [-10, 54]`, a plane with
+no thickness at all. Measured over the corpus's own textures:
+
+| face | rectangle | alpha over the shipped texture |
+|---|---|---|
+| **`UP`** | uv (0,54) | **22 % / 18 %** — a ring |
+| `DOWN` | uv (12,54) | **0 % — fully transparent** |
+
+**The build was drawing `DOWN` and dropping `UP`.** A quad is invisible when the rectangle it samples
+is transparent, which is not the same thing as being back-facing, so "culling is off, so the survivor
+is visible from both sides and the choice only decides whose UV is used" — which this file said for as
+long as the rule existed — is a statement about geometry that says nothing about visibility.
+
+**The fix is to draw the face pointing POSITIVE on each axis, which is what `flatFace` now returns as
+the face to DROP: `SOUTH` for a zero depth, `EAST` for a zero width, `DOWN` for a zero height.** All
+three were flipped together on the strength of the halo alone and the eyes immediately read wrong,
+because each axis is its own decision and only two of the three had been measured:
+
+| zero axis | drawn | decided by |
+|---|---|---|
+| **height** | **`UP`** | the halo, above — **the only axis this section changed** |
+| depth | `NORTH` | probe v17 (a colour key: `cyan`) |
+| width | `WEST` | **nothing yet** — left as it was, and **unmeasured** |
+
+**Blockbench settled what an offline read of the texture could not.** An offline alpha scan found the
+ring *absent from both rectangles* and concluded the pack had no halo — which was wrong, because the
+crop it was judged on composites transparency onto white and a pale ring on white reads as a pale
+block. Loading the model in Blockbench shows the ring plainly, **and the eyes as well**. The texture
+and the model were never in question; only the face this file chose was.
+
+**The rectangle LAYOUT is still `BoxUv`'s and is still asserted rather than verified.** What was
+measured here is *which face is drawn*, not where the two rectangles sit — and that is the remaining
+half, in three lines of `BoxUv`.
+
+### 4.2.5 Coplanar decals are separated by walking each quad off its own surface, in model space
+
+**A uniform lift cannot separate two quads that share a plane, and the corpus's eyes are exactly
+that.** `eye2` holds two such pairs, both at z 1.98 and overlapping 0.90 × 3.00:
+
+```
+eye2 #0 (x[-4.00,-2.00], uv[0,0]) X eye2 #1 (x[-2.90,-1.90], uv[1,0])
+eye2 #3 (x[ 2.00, 4.00], uv[0,3]) X eye2 #4 (x[ 1.90, 2.90], uv[1,0])
+```
+
+**They have different rectangles, so the flicker is one eye part's texture against another's.** The
+build rendered them at exactly equal depth, which the depth buffer does not resolve at the distance a
+character is viewed from — reported as *the eyes flicker between skin tone and eye colour*, in the
+third-person front view and **only** there, which is the only view in which an eye decal is visible at
+all. That last detail is what identified the pair: the fight is not eye-against-face, it is
+eye-against-eye.
+
+**Fixing it took four attempts and the first three made it worse, and the reason is worth the space.**
+
+| attempt | result |
+|---|---|
+| the render type's own Z-offset layer | **worse** — removing it made the flicker *better*, so it was applied and pulling the wrong way |
+| a pose-stack nudge of **+0.005** blocks | renders the eyes wrongly |
+| the same nudge at **−0.005** | better, but a uniform move cannot separate coplanar quads at all |
+| walking each quad along its **own normal**, declaration order | renders the eyes wrongly **again** |
+
+**All three failures have one cause, and it is structural.** Both spaces are **reflections** —
+`ON_PLAYER` negates Y, `IN_FIRST_PERSON` negates X, and both determinants are negative. A cross
+product taken **after** the space conversion therefore faces the opposite way to the one it had before
+it. Measured on the corpus's eye quad:
+
+```
+normal in model space            (0, 0, -1.00)   OUTWARD — the front of the face
+normal after the space scaling   (0, 0, +1.00)   INWARD  — flipped
+```
+
+**A normal computed on the converted corners is not the model's normal**, and every attempt that used
+one pushed the decal *into* the surface it decorates — which is exactly the symptom of a +Z move. This
+is the general hazard of a conversion that mirrors, and it is the same trap SC-150 §5.1 rule 4 records
+for blocks.
+
+**So the walk is taken from the untransformed cube**, where the model's own corner order says which
+way its faces point without reference to where the camera is, and the pose carries it from there like
+any other vertex. The step is a **fortieth** of the 0.02-unit gap the corpus leaves between an eye and
+the face it decorates, so ten quads of it stay inside a quarter of that gap and nothing moves
+perceptibly. **Not a fitted constant: derived from the gap it has to beat.**
+
+### 4.2.6 Still open: the shield sits a little high in first person, and no rule accounts for it
+
+**This is the last thing the composition work did not explain, and it is recorded here rather than
+fixed, because the fix that would be obvious is the one §3.4.4 forbids.**
+
+Six rules are now measured, and the build matches every one of them:
+
+| rule | decided by |
+|---|---|
+| a bone's own three channels are independent, translation outermost | probe v9/v10 |
+| **a parent's animation rotation carries its child's animation position** | probe v16 |
+| a parent's declared rotation carries it | probe v14 |
+| the wearer's transform composes **outside** the pack's | probe v13 (§4.2.2) |
+| a flat cube draws its **positive** face, because a transparent rectangle is not a back-facing one | probe v17 + Blockbench (§4.2.4) |
+| coplanar decals are walked apart in model space | this build (§4.2.5) |
+
+**Attribution, by deleting one `.hand` entry at a time** (`kivotos:hoshino_onbu`, first person):
+
+| removed from `.hand` | `bag2` top | drop |
+|---|---|---|
+| nothing | 34.43 | — |
+| `leftArm2` `rotation [87.5,-85,-47.5]` | 27.71 | **6.72** |
+| `bag2` `position [0,1,1]` | 33.04 | 1.39 |
+
+**83 % is the arm's animation rotation.** `leftArm2` reaches a net roll of −95° (idle −35, `.hand`
+−47.5, bind −12.5) and the shield hangs off it. Both numbers are the pack author's own, authored
+against the engine.
+
+**Two readings remain and neither has been taken.** Either a rule still exists that no probe has
+asked about, or this is a sub-block residual. **What is needed next is a probe, not a constant** —
+and the question to put to one is narrow: *given a parent whose rotation reaches a large net roll, and
+a child carrying a position along the axis that roll turns, is the child's displacement amplified the
+way the two rules above jointly say it is, or is it composed some third way?* v16 answered the
+axis-perpendicular case; the shield asks the same question with the offset **along** the roll axis,
+which is a different measurement.
+
+**This entry exists so the next person does not re-derive it.** The six rules above took eight probes
+(`probe11`..`probe18`) to establish, three of which were mis-designed in ways that produced confident
+wrong answers — and the wrong answers all shared one cause, recorded in §4.2.5.
 
 ### 4.2.1 The wearer is posed by a different animation set per view, and first person never touches `waist`
 
@@ -1026,6 +1247,12 @@ the `body`-parented one's as third person plus `[0, -1, -6]` — the one transla
 animation contributes that the idle does not also name. Both match the Bedrock client except for the
 rotation above, which nothing in this build supplies: `WearerSkeleton.upright` answers identity for
 `body`.
+
+**The `body`-parented row is what probe v13 then corrected**, and it is worth being precise about
+which half: the **+ `[0, -1, -6]`** still holds — the pack's translation is applied — but with the
+wearer's half turn composed **outside** it, that −6 is carried by the turn rather than added after it.
+The survey's plus-sign is the composition, not a bare offset, and reading it as a bare offset is what
+kept the two orders looking equivalent in third person.
 
 **That also bounds the fix.** Because no first-person animation names `waist`, giving `body` its
 rotation cannot move a `waist`-parented attachable, and the survey output for her must come back
@@ -1094,8 +1321,9 @@ the two clients side by side for this character since.**
 **Both were fitted to the wrong starting position, and that is the correction.** Each was applied on
 top of §4.2's composed `body` translation — the character had already been dragged a third of a
 block forward before the rotation reached her, so turning her about the spine swung her through the
-camera. Once first person **replaces** wearer bones (§4.2), she starts from her third-person
-placement instead, and the same quarter turn reads differently:
+camera. §4.2's row for this view now reads **composes** (measured, §4.2.2), and the correction is to the
+*order* those two compose in rather than to whether they compose: the wearer's half turn goes
+**outside**, so she starts from her third-person placement and the same quarter turn reads differently:
 
 ```
 from   x  +0.48 .. +10.07   z  +2.65 ..  +9.98    riding on his back
@@ -1138,7 +1366,16 @@ Two vanilla facts fell out of the same reading and are recorded so they are not 
   controller and is now run** — §5.1, where the assumption that this was blocked on Mojang's file is
   corrected.
 - The player's sneak pose is a **third-person** animation. First person does not tip the torso, so
-  the crouch pitch `WearerSkeleton.upright` records as missing is not a divergence.
+  the crouch pitch `WearerSkeleton.upright` records as missing is not a divergence. **And the crouch
+  moves nothing else either, now that it has been asked rather than assumed**: the third-person
+  wearer skeleton reads a Java `ModelPart`, and that part's **position** is not zero whenever the
+  player is not standing still. The engine's wearer bones are written as **rotations** — vanilla's
+  first-person `base_pose` writes `body` and `head` as rotations and nothing else — so the position is
+  a fact about Minecraft's own model and not about the wearer's skeleton, and feeding it through
+  displaced every wearer-driven attachable by however far Java had moved the part. **Rotation only.**
+  (The first-person ORIGIN is the other half of the same question and is §3.4.2: reading the live
+  eye height made crouching jump the whole character 0.35 blocks, and the Bedrock client moves
+  nothing.)
 
 ### 4.3 `query.target_*_rotation` is where the wearer is looking
 

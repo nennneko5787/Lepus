@@ -1,0 +1,13 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.lepus_probe16.pos": {
+      "loop": "hold_on_last_frame",
+      "bones": {
+        "arm_roll": { "rotation": [0, 0, 90] },
+        "m_roll": { "position": [0, 24, 0] },
+        "m_none": { "position": [0, 24, 0] }
+      }
+    }
+  }
+}

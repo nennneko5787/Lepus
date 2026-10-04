@@ -150,12 +150,93 @@ entries:
       that reaches in front of the player is a real omission rather than a hidden one.
 
       WHAT IS CONFIRMED, and what is not, was re-measured against a pair of captures rather than
-      inherited. Confirmed: the channel composition (independent channels, translation outermost,
-      SC-180 section 4.1.3), that a conditional entry fires (section 4.4), that the wearer's `body`
-      carries a half turn in first person (section 4.2.1), and that a model in this build lands where
-      the offline survey says it does - the survey's own numbers predict this build's head centre at
-      20% of screen width and the capture puts it at 20%, so the instrument is good to about 1.5%
-      and the numbers below it can be believed.
+      inherited. Confirmed: the channel composition (independent channels, translation outermost
+      **within one bone**, SC-180 section 4.1.3), that a conditional entry fires (section 4.4), that
+      the wearer's `body` carries a half turn in first person (section 4.2.1), and that a model in
+      this build lands where the offline survey says it does - the survey's own numbers predict this
+      build's head centre at 20% of screen width and the capture puts it at 20%, so the instrument is
+      good to about 1.5% and the numbers below it can be believed.
+
+      **THE COMPOSITION ACROSS THE PACK/WEARER BOUNDARY IS NOW MEASURED, AND IT WAS WRONG.** The
+      wearer's transform goes outside the pack's - `wearer x pack`, so the pack's `position` is
+      applied INSIDE the wearer's rotation, not after it. It was the other way round, and the corpus's
+      `.hand` is the one animation in the surveyed set that writes onto a bone the wearer drives
+      (`position [0,-1,-6]` onto the cube-less `body`), which is why the sign flipped on the one
+      character that was wrong and left the other untouched. Probe v13 (`probe11`..`probe13`): a bone
+      named `body` carrying `position [0,0,-24]` and no animation of its own, read in both views.
+      Third person lands at z -24 either way - **the wearer's transform is ~identity there, so the
+      order is invisible from third person** - and first person lands at z +24, the bar out of sight
+      behind the camera. Correcting it moves the `body`-parented character's first-person `body2`
+      from z -12.08..-3.09 to z -0.08..8.91, and leaves the `waist`-parented one byte-for-byte
+      unchanged. **SC-180 section 4.2.2** records the frame and what v11 got wrong on the way to it.
+
+      **A PARENT'S ANIMATION ROTATION CARRIES ITS CHILD'S POSITION — MEASURED, probe v16, and it is
+      what this build does.** v12 and v14 asked this and answered it both ways; both rigs were broken
+      (v12 asked the reader to compare two bars that do not both exist under one of the readings, and
+      v14/v15 asked a depth question of a third-person camera). v16 rotates about Z so the answer is
+      *up or sideways* and came out sideways. **SC-180 section 4.2.3.**
+
+      **EVERY HALO IN THE CORPUS WAS INVISIBLE, AND IT WAS THE FACE CHOICE.** Both characters declare
+      their halo identically - `size [12,0,10]` at `uv [-10,54]` - and neither drew it. The two faces'
+      rectangles are not interchangeable: the one this build drew measures **0% alpha** across the
+      shipped textures and the one it dropped carries a **22%/18% ring**. A quad is invisible when the
+      rectangle it samples is transparent, which is not the same as being back-facing, so the long-
+      standing justification for dropping either face was a statement about geometry that said nothing
+      about visibility. Drawing the POSITIVE face on each axis fixes it; **only the height axis was
+      changed**, because the depth axis is pinned by probe v17 and the width axis is **unmeasured**.
+      **SC-180 section 4.2.4.** Blockbench settles what an offline alpha scan could not: the texture
+      and model were never in question, only the face this build chose.
+
+      **THE EYES FLICKERED BECAUSE TWO OF THEIR QUADS SHARE A PLANE.** `eye2` #0 with #1 and #3 with
+      #4 are each coplanar at z 1.98 and overlap 0.90 x 3.00, with **different rectangles**, so the
+      fight is one eye part's texture against another's - and it is visible only in the third-person
+      front view, which is the only view an eye decal is visible from. Fixed by walking each flat quad
+      off its own surface in declaration order. **The three failed attempts and their single cause are
+      the transferable part: both spaces are reflections, so a normal taken after the space
+      conversion faces the opposite way** (measured: model space `(0,0,-1)`, converted `(0,0,+1)`), and
+      every attempt using one pushed the decal INTO its surface. The step is a fortieth of the gap the
+      corpus leaves between an eye and a face, so it is derived rather than fitted. **SC-180 section
+      4.2.5.** The render type's own Z-offset layer was also removed, on the measurement that doing so
+      made the flicker better - it was applied and pulling the wrong way.
+
+      **A CROUCHING PLAYER MOVED THE WHOLE CHARACTER 0.35 BLOCKS UP, IN FIRST PERSON ONLY.** Two
+      causes, both a Minecraft implementation detail passed as though the engine had asked for it,
+      both now measured against the Bedrock client:
+      - **the first-person ORIGIN read the live `getEyeHeight()`** (SC-180 section 3.4.2). It reads
+        well - a crouched player's eye is lower, so a constant would sink with them - and it is what
+        this build did. The engine's first-person attachable is anchored to the **player**, not to the
+        camera looking at it, and **Bedrock moves nothing on a crouch**. The constant
+        `AttachableSpace.STANDING_EYE_HEIGHT` already existed and already documented itself as "the
+        value for a player standing still".
+      - **the third-person wearer skeleton read a Java `ModelPart`'s POSITION** (SC-180 section
+        4.2.1). That position is not zero whenever the player is not standing still - crouching moves
+        `body` and `head` along Y - and the engine's wearer bones are written as **rotations** only.
+        **Rotation only now.**
+
+      **THE SHIELD IS THE LAST UNRESOLVED ITEM, and no rule accounts for it.** With every composition
+      rule measured and matching - own channel order (v9/v10), parent animation rotation carrying a
+      child's position (v16), parent declared rotation carrying (v14), the wearer boundary (v13), the
+      flat-cube face choice (v17 + Blockbench), the UV normalisation (v18) and the coplanar decal
+      separation - there is **no rule-level explanation left for it**. Attribution on
+      `kivotos:hoshino_onbu`, first person, deleting one `.hand` entry at a time:
+
+      | removed from `.hand` | `bag2` top | drop |
+      |---|---|---|
+      | nothing | 34.43 | - |
+      | `leftArm2` `rotation [87.5,-85,-47.5]` | 27.71 | **6.72** |
+      | `bag2` `position [0,1,1]` | 33.04 | 1.39 |
+
+      So **83 % of it is the arm's animation rotation** - `leftArm2` reaches a net roll of -95 degrees
+      (idle -35, `.hand` -47.5, bind -12.5) - and the rest is the shield's own position. Both are the
+      pack author's own numbers, authored against the engine, and this build now applies them by rules
+      the probes show agree with it.
+
+      **Two readings remain and neither has been taken.** Either an unmeasured rule still exists, or
+      this is a sub-block residual whose magnitude this document does not claim to know. §3.4.4's
+      standing decision is **not to chase sub-block residuals with fitted constants**, and five have
+      died in this area - every one standing in for a rule that had not been measured. **Six rules
+      HAVE now been measured, and none of them is this**, which is itself the finding. **What is needed
+      next is another probe, not another constant.**
 
       NOT confirmed, and now contradicted: the claim that the character appears "face visible, on
       both clients". On the same pair of captures her face is visible on the Bedrock client and NOT

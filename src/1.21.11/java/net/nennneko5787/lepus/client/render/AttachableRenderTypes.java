@@ -23,8 +23,17 @@ public final class AttachableRenderTypes {
         return RenderTypes.entityCutoutNoCull(texture);
     }
 
-    /** For flat cubes: the same, pulled towards the camera. */
+    /**
+     * For flat cubes: the same, <b>without</b> the Z-offset layer.
+     *
+     * <p><b>MEASURED on 1.21.11, and the offset is worse than nothing here.</b> The corpus puts an
+     * eye two hundredths of a Bedrock unit in front of the face it decorates, and with this layer
+     * the eye flickered between skin tone and eye colour — in third person as well as first.
+     * Removing the layer made it <b>better</b>, so it was applied and pulling the wrong way for this
+     * geometry: not inert, and not merely too small. The flat cubes still get a pass of their own,
+     * which is what keeps the depth ordering between them and the solid cubes sane.
+     */
     public static RenderType overlay(Identifier texture) {
-        return RenderTypes.entityCutoutNoCullZOffset(texture);
+        return RenderTypes.entityCutoutNoCull(texture);
     }
 }

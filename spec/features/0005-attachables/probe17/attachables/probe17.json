@@ -1,0 +1,14 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "lepus:probe17",
+      "materials": { "default": "entity_alphatest" },
+      "textures": { "default": "textures/texkey" },
+      "geometry": { "default": "geometry.lepus_probe17" },
+      "animations": { "hold": "animation.lepus_probe17.hold" },
+      "scripts": { "animate": [ "hold" ] },
+      "render_controllers": [ "controller.render.item_default" ]
+    }
+  }
+}

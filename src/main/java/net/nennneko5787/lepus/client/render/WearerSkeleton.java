@@ -22,6 +22,15 @@ import net.nennneko5787.lepus.core.format.render.Mat4f;
  * displacement, and only these two rest at the origin; {@code rightArm} sits at {@code (-5, 2, 0)}
  * when the player stands, so feeding its position in as a displacement would throw every arm-bound
  * attachable five units sideways.
+ *
+ * <p><b>And only the rotation is fed, because a Bedrock wearer bone has no translation to read.</b>
+ * Vanilla's first-person {@code base_pose} writes {@code body} and {@code head} as rotations
+ * (SC-180 section 4.2.1), and its third-person state writes them the same way. A Java {@code ModelPart}'s
+ * {@code x,y,z} is a fact about Minecraft's own model, not about the wearer's skeleton, and it is
+ * <b>not zero whenever the player is not standing still</b>: crouching moves {@code body} and
+ * {@code head} along Y, and the reported symptom was exactly that — the whole character jumped
+ * upward when the player sneaked, on this client and not on Bedrock. **Passing the position through
+ * was therefore passing a Minecraft implementation detail as though the engine had asked for it.**
  */
 @SpecImpl("SC-180#animation/bones")
 public final class WearerSkeleton {
@@ -70,13 +79,15 @@ public final class WearerSkeleton {
     }
 
 
-    private static Mat4f fromPart(ModelPart part) {
-        return rotation((float) Math.toDegrees(part.xRot), (float) Math.toDegrees(part.yRot),
-                (float) Math.toDegrees(part.zRot), part.x, part.y, part.z);
-    }
-
     /**
-     * One of Java's model parts, as a transform in Bedrock's space.
+     * One of Java's model parts, as a transform in Bedrock's space: <b>rotation only</b>.
+     *
+     * <p>The part's position is deliberately not read. It is a fact about Minecraft's own model and
+     * not about the wearer's skeleton — the engine's wearer bones are written as rotations
+     * (SC-180 §4.2.1) — and it is <b>not zero whenever the player is not standing still</b>: crouching
+     * moves {@code body} and {@code head} along Y, and the reported symptom was the whole character
+     * jumping upward when the player sneaked, here and not on Bedrock. <b>That was a Minecraft
+     * implementation detail being passed as though the engine had asked for it.</b>
      *
      * <p><b>Java's entity space is Bedrock's with Y flipped</b> (see {@code ON_PLAYER}), and a
      * rotation conjugated by that flip reverses about the two axes the flipped one takes part in and
@@ -88,10 +99,9 @@ public final class WearerSkeleton {
      * {@code BoneMatrices.rotate}: that one applies Bedrock's angle sense, which belongs to angles a
      * PACK wrote and not to a number read out of Java's own model.
      */
-    private static Mat4f rotation(float pitch, float yaw, float roll, float x, float y, float z) {
-        return Mat4f.translation(x, -y, z)
-                .times(Mat4f.rotationZ(-roll))
-                .times(Mat4f.rotationY(yaw))
-                .times(Mat4f.rotationX(-pitch));
+    private static Mat4f fromPart(ModelPart part) {
+        return Mat4f.rotationZ(-(float) Math.toDegrees(part.zRot))
+                .times(Mat4f.rotationY((float) Math.toDegrees(part.yRot)))
+                .times(Mat4f.rotationX(-(float) Math.toDegrees(part.xRot)));
     }
 }

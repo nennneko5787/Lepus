@@ -103,12 +103,22 @@ public final class AttachablePoser {
      * those from the player's skeleton. Without that a halo is a ring that stays where the model
      * declared it while the head turns underneath, which is how it was reported.
      *
-     * <p><b>The wearer's transform goes OUTSIDE the pack's, not instead of it.</b> A pack may pose a
-     * wearer-named bone and Bedrock honours it: one character's first-person animation moves the
-     * cube-less {@code body} bone she hangs off by {@code [0, -1, -6]}, and that third of a block
-     * forward is what carries her head in FRONT of the first-person camera instead of behind it.
-     * Replacing instead of composing left the head entirely behind the near plane, which on screen
-     * is a character with no head at all.
+     * <p><b>The wearer's transform goes OUTSIDE the pack's, not instead of it, and it is applied
+     * AFTER the pack's own channels are summed.</b> A pack may pose a wearer-named bone and
+     * Bedrock honours it: one character's first-person animation moves the cube-less {@code body}
+     * bone she hangs off by {@code [0, -1, -6]}, and that third of a block is part of where she
+     * lands. Replacing the pack's pose instead of composing with it discards that, and with it
+     * the head — which is what was tried and what left her with no head at all.
+     *
+     * <p><b>Which side of the multiplication, measured by probe v13 and not by argument.</b> The
+     * wearer's contribution is <em>written</em> as an animation (vanilla's first-person
+     * {@code base_pose} is one) and that is where the old reading came from — but it is applied as
+     * a separate outer pass, so the pack's position is composed <em>inside</em> the wearer's
+     * rotation. The corpus proves the difference is real: its {@code .hand} writes
+     * {@code position [0,-1,-6]} onto {@code body}, first person turns {@code body} by a half
+     * turn, and the two orders put that −6 on opposite sides. Third person cannot tell them apart
+     * — the wearer's transform is ~identity there — so the whole of this was invisible until a
+     * probe put the bone where a wearer drives it and read the sign.
      *
      * <p>It reached the head and nothing else because the other character in the same pack hangs off
      * {@code waist}, which no wearer drives — the one asymmetry in the corpus that lets a single
@@ -150,13 +160,31 @@ public final class AttachablePoser {
         }
         Map<String, Mat4f> extra = new LinkedHashMap<>();
         channels.forEach((bone, accumulated) -> extra.put(bone, accumulated.transform()));
-        // A bone both the pack and the wearer pose combines AS THE CHANNELS WOULD: the wearer's
-        // contribution is one more animation in the stack (vanilla's base_pose IS one), so a pack
-        // position and a wearer rotation build one transform, translation outermost - §4.1, and
-        // the same v9 probe that pinned that order. Composing the other way round (driver outside)
-        // sent the corpus's `body [0,-1,-6]` BACKWARDS the moment the wearer's half turn arrived.
+        // THE WEARER'S TRANSFORM GOES OUTSIDE THE PACK'S. MEASURED, probe v13, and it is the other
+        // way round from what this line used to do.
+        //
+        // The reasoning that pinned the old order was "the wearer's contribution is one more
+        // animation in the stack", which is true of how it is WRITTEN — vanilla's first-person
+        // `base_pose` really is an animation — and false of when it is APPLIED. It is not another
+        // entry in `scripts.animate`: it has no blend, no clock and no channels, and it is
+        // composed after the pack's channels have been summed into one transform. So it is a
+        // separate outer pass, not a member of the inner stack.
+        //
+        // What that costs when they are not told apart: the corpus's `.hand` writes `position
+        // [0,-1,-6]` onto the cube-less `body` she hangs off by, and first person turns `body` by a
+        // half turn. Put the translation outside (the old reading, §4.1's "translation outermost"
+        // read across from a single bone) the −6 is added AFTER that turn and lands on the wrong
+        // side; put it inside, the −6 is added first and the turn carries it. The sign flips, and
+        // with it the whole character's placement in the only view where a wearer drives `body`.
+        //
+        // Probe v13 is the frame that decides it, and it is one bar: a bone named `body`, so a
+        // wearer drives it, with `position [0,0,-24]` and no animation of its own, beside a control
+        // bone no wearer drives. Third person put it at z −24 in both readings — the wearer's
+        // transform is ~identity there, which is why the corpus never caught this. First person put
+        // it at **+24, out of sight behind the camera**, which is the reading below and only the
+        // reading below.
         skeleton.forEach((bone, driven) ->
-                extra.merge(bone, driven, (animated, driver) -> animated.times(driver)));
+                extra.merge(bone, driven, (animated, driver) -> driver.times(animated)));
         if (extra.isEmpty()) {
             return BoneMatrices.bindPose(geometry);
         }

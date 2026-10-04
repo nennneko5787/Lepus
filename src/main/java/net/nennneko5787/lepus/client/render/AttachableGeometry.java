@@ -88,19 +88,62 @@ public final class AttachableGeometry {
         // quarter. No depth buffer at Minecraft's view distance separates that, so the two fight and
         // the eye flickers. Bedrock's renderer tolerates the gap; Java's does not.
         //
-        // The flat ones therefore go through the Z-offset layer — vanilla's own answer for a decal
-        // that would fight the surface it decorates. Nothing is moved, so nothing has to guess which
-        // way "outwards" is, which was the alternative and needs a direction this file has not got.
+        // The flat ones therefore go through a pass of their own, **without the render type's
+        // Z-offset.**
+        //
+        // <p><b>The offset was measured and it is worse than nothing.</b> On 1.21.11 the eye flickered
+        // between skin tone and eye colour — the flat quad at z 1.98 against the face at z 2.00, a
+        // twentieth of a Bedrock unit apart, in third person as well as first. Removing the offset
+        // made it <b>better</b>, so it was being applied and pulling the wrong way for this geometry:
+        // not inert, and not merely too small.
+        //
+        // <p><b>What replaces it.</b> The render type's offset is gone; the flat pass gets a per-quad walk
+        // along each quad's own outward normal <em>in model space</em>, in declaration order. Both
+        // spaces are reflections, so a normal taken after the conversion faces the other way, and
+        // that is what made the first attempt at this push decals into their surface.
         pass(collector, poseStack, AttachableRenderTypes.solid(texture), geometry, pose, space,
                 width, height, light, overlay, tint, false);
         pass(collector, poseStack, AttachableRenderTypes.overlay(texture), geometry, pose, space,
                 width, height, light, overlay, tint, true);
     }
 
+    /**
+     * How far apart consecutive coplanar decals are drawn, in blocks. SC-180 §3.
+     *
+     * <p><b>Not a fitted constant.</b> The corpus leaves a gap of 0.02 Bedrock units between an eye
+     * and the face it decorates, and this is a fortieth of that — so a model of any reasonable
+     * decal count still lands well inside the gap it was drawn to sit in, and nothing moves
+     * perceptibly. It exists because two quads sharing a plane cannot be separated by any lift
+     * applied to both: the corpus's eyes are exactly that, {@code eye2} #0 with #1 and #3 with #4,
+     * each pair coplanar at z 1.98 and overlapping 0.90 x 3.00.
+     */
+    private static final float FLAT_DECAL_STEP_BLOCKS = 0.0008f;
+
+    /**
+     * The eye decal that survives its own surface: a residual, not a solved problem. SC-180 §3.
+     *
+     * <p>The corpus's halos and eyes sit two hundredths of a Bedrock unit in front of the face
+     * they decorate — a millimetre and a quarter at model scale — and the depth buffer does not
+     * separate that at the distance a character is viewed from. Three things were measured:
+     *
+     * <ul>
+     *   <li>the render type's own Z-offset, which <b>makes it worse</b> (pulls the wrong way);
+     *   <li>drawing both faces of a degenerate pair, which fights over depth where both of the
+     *       pair's rectangles have content;
+     *   <li>a nudge in the pose stack, whose <b>sign was measured rather than assumed</b>: +0.005
+     *       renders the eyes wrongly, so the lift is -Z.
+     * </ul>
+     *
+     * <p>The magnitude is derived from the gap it has to beat, not fitted to a picture: the corpus's
+     * smallest eye-to-face gap is 0.02 Bedrock units and this is four times that, which is an order
+     * of magnitude under the 0.23 separating the eye from the hair layer in front of it.
+     */
+
     /** One pass over the model, taking either the cubes with thickness or the flat ones. */
     private static void pass(SubmitNodeCollector collector, PoseStack poseStack,
             RenderType renderType, GeometryIr geometry, Map<String, Mat4f> pose, float[] space,
             float width, float height, int light, int overlay, int tint, boolean flatOnes) {
+        int[] drawn = {0};
         collector.submitCustomGeometry(poseStack, renderType, (matrix, buffer) -> {
             for (BoneIr bone : geometry.bones()) {
                 if (bone.neverRender()) {
@@ -120,7 +163,7 @@ public final class AttachableGeometry {
                         continue;
                     }
                     submitCube(buffer, matrix, bonePose, bone, cube, width, height, space,
-                            light, overlay, tint);
+                            light, overlay, tint, flatOnes ? drawn[0]++ * FLAT_DECAL_STEP_BLOCKS : 0.0f);
                 }
             }
         });
@@ -128,7 +171,7 @@ public final class AttachableGeometry {
 
     private static void submitCube(VertexConsumer buffer, PoseStack.Pose matrix, Mat4f bonePose,
             BoneIr bone, CubeIr cube, float width, float height, float[] space,
-            int light, int overlay, int tint) {
+            int light, int overlay, int tint, float lift) {
         float inflate = cube.inflate() + bone.inflate();
         Vec3f origin = cube.origin();
         Vec3f size = cube.size();
@@ -139,6 +182,36 @@ public final class AttachableGeometry {
         float y1 = origin.y() + size.y() + inflate;
         float z1 = origin.z() + size.z() + inflate;
 
+        // Coplanar decals are walked apart **in model space, before the pose and before the
+        // space conversion**, and that placement is the whole of why this works.
+        //
+        // <p>Both spaces have a NEGATIVE determinant — `ON_PLAYER` negates Y and
+        // `IN_FIRST_PERSON` negates X — so they are reflections, and a cross product taken after
+        // them comes out facing the opposite way to the one it would have had before. Measured on
+        // the corpus's eye quad: (0, 0, -1) in model space, (0, 0, +1) after conversion. An offset
+        // taken there therefore pushes a decal INTO the surface it decorates, which is the exact
+        // failure that made three previous attempts render the eyes wrongly.
+        //
+        // <p>The model's own corner order knows which way its faces point without reference to
+        // where the camera is, so the walk is taken from the untransformed cube and the pose
+        // carries it from there like any other vertex.
+        float dx = 0.0f, dy = 0.0f, dz = 0.0f;
+        if (lift != 0.0f) {
+            // Same corner order `face` uses for NORTH: (x1,y0,z0), (x0,y0,z0), (x0,y1,z0).
+            float[] a = {x1, y0, z0};
+            float[] b = {x0, y0, z0};
+            float[] c = {x0, y1, z0};
+            float nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+            float ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+            float nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+            float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (length > 1.0e-6f) {
+                dx = nx / length * lift;
+                dy = ny / length * lift;
+                dz = nz / length * lift;
+            }
+        }
+
         // The eight corners, posed and converted, indexed by the bits of x/y/z. Computed once and
         // shared by the six faces: a corner belongs to three of them, and transforming it three
         // times is both slower and a way for two faces to disagree about where an edge is.
@@ -147,18 +220,26 @@ public final class AttachableGeometry {
             float x = (i & 1) == 0 ? x0 : x1;
             float y = (i & 2) == 0 ? y0 : y1;
             float z = (i & 4) == 0 ? z0 : z1;
-            float[] posed = bonePose.transform(x, y, z);
+            float[] posed = bonePose.transform(x + dx, y + dy, z + dz);
             corner[i] = new float[] {
                     posed[0] * space[0], posed[1] * space[1], posed[2] * space[2]};
         }
 
-        // A cube with no thickness on an axis is ONE quad, not two.
+        // A cube with no thickness on an axis is ONE quad: the two faces of that axis's pair lie in the
+        // same plane, so exactly one of them is drawn.
         //
-        // Bedrock models are full of these: eyes, hair strands, halos and skirt panels are all
-        // written as a cube with a zero size on one axis. Emitting both of that axis's faces puts
-        // two quads in exactly the same plane, and two coplanar quads fight over the depth buffer —
-        // which on screen is the surface tearing and flickering as the camera moves. It looked like
-        // a renderer precision problem and it was a counting problem: one surface drawn twice.
+        // <b>WHICH one is not a matter of taste — it is the difference between a halo and no halo.</b>
+        // A quad is invisible when the rectangle it samples is transparent, not when it is
+        // back-facing, so the pair is not interchangeable. The corpus's halos are
+        // {@code size [12,0,10]} at {@code uv [-10,54]}: measured over every texture checked, the
+        // face this used to draw is **fully transparent** and the one it skipped has content.
+        //
+        // <p><b>So the one to drop is the one pointing NEGATIVE, and it was implemented as the
+        // opposite for this file's whole life.</b> Zero height then draws {@code UP} (the halo's
+        // content) and zero depth draws {@code NORTH} — which is also what the eyes want, measured
+        // on probe v17. Drawing both faces instead was tried and is worse: it fixes the halo and
+        // reintroduces the coplanar depth fight the original author was avoiding, which shows on
+        // every pair whose two rectangles both have content.
         CubeFace flat = flatFace(size.x() + inflate * 2, size.y() + inflate * 2,
                 size.z() + inflate * 2);
         for (CubeFace face : CubeFace.values()) {
@@ -173,15 +254,43 @@ public final class AttachableGeometry {
     /**
      * The face to drop when a cube has no thickness, or null when it has some.
      *
-     * <p>Which of the pair is dropped decides which way the surviving quad faces, and the answer is
-     * "the one pointing at negative" — {@code south} rather than {@code north} — because the model
-     * is drawn with culling off, so the survivor is visible from both sides and the choice only
-     * decides whose UV is used. Bedrock's own flat cubes give both faces the same rectangle.
+     * <p><b>Each axis is its own decision, and only two of the three have been measured.</b> The pair is
+     * not interchangeable: a quad vanishes when the rectangle it samples is <em>transparent</em>,
+     * which has nothing to do with which way it faces, so "culling is off, so the choice only
+     * decides whose UV is used" is a statement about geometry that says nothing about whether
+     * anything is visible. The corpus's halos are {@code size [12,0,10]} at {@code uv [-10,54]}: of
+     * the two faces, the one this method used to draw is <b>fully transparent</b> in every texture
+     * checked and the one it skipped has content, so every halo in every character was emitted,
+     * covered exactly the right pixels, and showed nothing.
+     *
+     * <table>
+     * <caption>per axis, and what decided each</caption>
+     * <tr><th>zero axis</th><th>drawn</th><th>decided by</th></tr>
+     * <tr><td>height</td><td>{@code UP}</td><td>alpha over the corpus textures — the halo</td></tr>
+     * <tr><td>depth</td><td>{@code NORTH}</td><td>probe v17's colour key — the eyes</td></tr>
+     * <tr><td>width</td><td>{@code WEST}</td><td><b>nothing yet</b> — unchanged, and unmeasured</td></tr>
+     * </table>
+     *
+     * <p><b>There is no single sign to apply here, and trying to find one broke the eyes.</b> All
+     * three were flipped together on the strength of the halo alone; the eyes — {@code size [2,3,0]}
+     * at {@code uv [0,0]} — then drew the other rectangle and read wrong, which is what a one-axis
+     * finding generalised to three looks like. The width row is left as it was rather than given a
+     * measured answer it does not have.
+     *
+     * <p>Drawing the pair's <em>other</em> face instead was also tried and is strictly worse: it
+     * brings the halo back and puts the coplanar depth fight back with it, which flickers wherever
+     * both rectangles have content.
+     *
+     * <p><b>No probe measured the LAYOUT of the two rectangles</b>, only which face is drawn; the
+     * layout itself is {@link BoxUv}'s and is still asserted rather than verified. That is where a
+     * future correction belongs, and it is three lines there rather than here.
      *
      * <p>Zero is compared exactly. A cube one thousandth of a unit thick is a real box a pack
      * meant, and rounding it to flat here would silently drop a face somebody drew.
      */
     private static CubeFace flatFace(float width, float height, float depth) {
+        // One decision per axis, and they do NOT share a sign. Each names the face whose rectangle
+        // carries the picture for the corpus's flat cubes on that axis; see the table above.
         if (depth == 0.0f) {
             return CubeFace.SOUTH;
         }
@@ -189,7 +298,7 @@ public final class AttachableGeometry {
             return CubeFace.EAST;
         }
         if (height == 0.0f) {
-            return CubeFace.UP;
+            return CubeFace.DOWN;
         }
         return null;
     }

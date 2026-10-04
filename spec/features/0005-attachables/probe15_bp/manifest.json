@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Lepus parent-transform probe (behaviour half)",
+    "description": "Defines one custom item, lepus:probe15, so the resource half's attachable renders.",
+    "uuid": "1f7c3a90-5d24-4e18-9b62-7a0c8e150e63",
+    "version": [15, 0, 0],
+    "min_engine_version": [1, 20, 50]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "1f7c3a90-5d24-4e18-9b62-7a0c8e150e64",
+      "version": [15, 0, 0]
+    }
+  ]
+}

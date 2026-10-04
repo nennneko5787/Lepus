@@ -8,6 +8,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.nennneko5787.lepus.core.api.SpecImpl;
 import net.nennneko5787.lepus.core.format.render.AttachableContext;
+import net.nennneko5787.lepus.core.format.render.AttachableSpace;
 import net.nennneko5787.lepus.runtime.registry.AddonItem;
 import net.nennneko5787.lepus.runtime.registry.BoundAttachables;
 
@@ -151,13 +152,24 @@ public final class FirstPersonAttachables {
         // to come out: Bedrock renders the two views differently, and this one is not the player's
         // space at all.
         //
-        // THE EYE HEIGHT IS THE RIGHT ORIGIN, and that is measured rather than assumed. Dropping by
-        // the drawn model's own head instead — y 24 scaled, 1.40625 rather than 1.62 — was tried on
-        // the arithmetic that the two differ by 0.21 blocks and that Y was the one axis of this
-        // space never checked against a frame. It raised every first-person attachable by that much,
-        // and the one whose first-person placement DOES match a Bedrock capture came back visibly
-        // too high. Y is now checked and was already correct; Z was checked when this space was
-        // derived and X against a capture. All three have been read off a frame.
+        // THE EYE HEIGHT, AND IT IS THE **STANDING** ONE. The origin is the camera's eye, and this is how far
+        // below it Bedrock's y 0 - the character's feet - sits.
+        //
+        // **Using the live eye height was tried, and a Bedrock frame refutes it.** It reads well: a
+        // crouching player's eye drops, so a model nailed to a constant would sink into the ground
+        // with them. It is also what this build did - and the reported symptom was exactly that
+        // premise coming true in the wrong place: crouching moved the WHOLE character 0.35 blocks up,
+        // here, while the Bedrock client moves nothing at all. **The engine's first-person attachable
+        // is anchored to the player, not to the camera that happens to be looking at it**, and a
+        // camera that drops with the crouch must not drag the character with it.
+        //
+        // So the constant, which AttachableSpace.STANDING_EYE_HEIGHT already carries and already
+        // documents as "the value for a player standing still". A crouched player's eyes being lower
+        // is a fact about the camera; it is not a fact about where the character is.
+        //
+        // X and Z were checked when this space was derived, Y against the capture this constant
+        // comes from, and the other axis of Y - the crouch - against the frame above. All three read
+        // off a frame now.
         // NO PROJECTION CORRECTION, and one was tried on a real derivation. Java's hand pass
         // projects at a fixed 70° and Bedrock's default is 60, both measured to ignore the FOV
         // setting (SC-180 §4.4) - so scaling x and y by tan(35°)/tan(30°) should reproduce a 60°
@@ -166,7 +178,7 @@ public final class FirstPersonAttachables {
         // this pass is not a vertical 60-versus-70. The sub-block residual on the other character
         // stays a recorded TODO rather than a number - five fitted constants have died in this
         // file, and now one derived one has too.
-        poseStack.translate(0.0f, -player.getEyeHeight(), 0.0f);
+        poseStack.translate(0.0f, -AttachableSpace.STANDING_EYE_HEIGHT, 0.0f);
         poseStack.scale(PLAYER_MODEL_SCALE, PLAYER_MODEL_SCALE, PLAYER_MODEL_SCALE);
     }
 
