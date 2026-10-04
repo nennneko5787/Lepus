@@ -2,9 +2,10 @@
   "format_version": "1.8.0",
   "animations": {
     "animation.lepus_probe20.pos": {
-      "loop": "hold_on_last_frame",
+      "animation_length": 5,
+      "loop": true,
       "bones": {
-        "m_bind": { "position": [0, 24, 0] },
+        "m_bind": { "position": [0, 48, 0] },
         "m_ctrl": { "position": [0, 24, 0] }
       }
     }
