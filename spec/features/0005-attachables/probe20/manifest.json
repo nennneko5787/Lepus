@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Lepus bind-rotation probe (resource half)",
+    "description": "Reads, on a Bedrock frame: whether a bone's OWN declared rotation carries that same bone's animation position.",
+    "uuid": "6bbce1c5-7b74-487a-ba82-84c72419b2a2",
+    "version": [20, 0, 0],
+    "min_engine_version": [1, 20, 50]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "ee410e68-37ac-41f6-ba39-8bf3fce7bf9e",
+      "version": [20, 0, 0]
+    }
+  ]
+}

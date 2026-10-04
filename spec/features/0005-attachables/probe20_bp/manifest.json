@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Lepus bind-rotation probe (behaviour half)",
+    "description": "Defines one custom item, lepus:probe20, so the resource half's attachable renders.",
+    "uuid": "d9ef3e02-6167-46ad-be1d-7191382772a1",
+    "version": [20, 0, 0],
+    "min_engine_version": [1, 20, 50]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "c6f826ef-9ba1-4df9-854a-6006d2c5c68f",
+      "version": [20, 0, 0]
+    }
+  ]
+}

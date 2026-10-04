@@ -238,6 +238,27 @@ entries:
       HAVE now been measured, and none of them is this**, which is itself the finding. **What is needed
       next is another probe, not another constant.**
 
+      **Probe v20 is built and awaiting a Bedrock frame** (`probe20`, 100 % original, one item and
+      two marker bones). It asks the one remaining unmeasured pair that survives being asked as
+      "up or sideways": **does a bone's OWN DECLARED rotation carry that same bone's animation
+      position?** - which is exactly `bag2`, a declared rotation plus a `.hand` position of
+      `[0,1,1]`. This build already does carry it (`BoneMatrices.local` composes
+      `T(pivot) · R_declared · (T_anim · R_anim · S_anim) · T(-pivot)`), and the survey confirms the
+      rig lands sideways: `m_bind x 23..25, y -4..4` against a reference cube at the origin, in both
+      views. Nothing about the claim above changes until a frame arrives; if it comes back "up",
+      the rule is wrong for every attachable with a declared rotation and an animated position, and
+      the numbers quoted in this file have to be re-taken rather than adjusted.
+
+      The pair SC-180 section 4.2.6 proposes for this - a child offset **along** the axis its
+      parent's roll turns - **cannot be asked at all**, and the reason is arithmetic rather than
+      engineering: a rotation about Z leaves `(0,0,N)` where it is, so "carries" and "does not
+      carry" place the offset in the same place for every angle. That is the same shape as the four
+      mis-designed rigs (v12, v14, v15, v19), so the pair was not used and section 4.2.6 was left
+      alone. The second unmeasured pair - a bone's declared rotation against its own ANIMATION
+      rotation, i.e. the order `R_bind · R_anim` - is deliberately untouched: with a roll bind and a
+      yaw animation both candidates land pointing **up** and differ only in depth, which is the
+      third-person camera's weakest axis and the reason v14 and v15 died.
+
       NOT confirmed, and now contradicted: the claim that the character appears "face visible, on
       both clients". On the same pair of captures her face is visible on the Bedrock client and NOT
       here. The head's net rotation about Y is what decides that, and this build's is 180 (wearer)
