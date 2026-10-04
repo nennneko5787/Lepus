@@ -1194,7 +1194,12 @@ any other vertex. The step is a **fortieth** of the 0.02-unit gap the corpus lea
 the face it decorates, so ten quads of it stay inside a quarter of that gap and nothing moves
 perceptibly. **Not a fitted constant: derived from the gap it has to beat.**
 
-### 4.2.6 Still open: the shield sits a little high in first person, and no rule accounts for it
+### 4.2.6 Historical investigation: shield height appeared high in first person
+
+**Status correction (2026-10-04):** the user confirmed that shield height is correct. This historical
+investigation is not the current defect; the reported issue is that Java shows only one shield
+fitting where Bedrock shows more. The positional attribution below must not be used to change the
+shield's height.
 
 **This is the last thing the composition work did not explain, and it is recorded here rather than
 fixed, because the fix that would be obvious is the one §3.4.4 forbids.**
@@ -1253,6 +1258,23 @@ which is a different measurement.
 **This entry exists so the next person does not re-derive it.** The six rules above took eight probes
 (`probe11`..`probe18`) to establish, three of which were mis-designed in ways that produced confident
 wrong answers — and the wrong answers all shared one cause, recorded in §4.2.5.
+
+### 4.2.7 Face-lighting normals preserve outward orientation across reflections
+
+**The normal used for lighting must describe the outward side of the posed face.** The renderer
+derives a face normal from the cross product of two transformed edges. For a linear transform `A`,
+that cross product is `det(A) * A^-T * n`; when `A` has a negative determinant, it points inward
+relative to the transformed model face. `ON_PLAYER` and `IN_FIRST_PERSON` each have negative
+determinant (§4.2.5), so computing a lighting normal from their converted corners reverses it.
+
+**Correct the orientation by the sign of the complete linear transform**, including the bone pose
+and the selected space conversion. Keep the vertex positions, face order and UVs unchanged. This is
+the sign correction for the cross product, not a position adjustment. If the transformed face is
+degenerate, its zero-area normal has no lighting direction to preserve.
+
+This applies to every attachable cube face in both player and first-person rendering, including
+small fittings. A reversed normal can make a face receive light as though viewed from its back and
+blend into an adjacent dark surface; changing a bone's position cannot correct that lighting error.
 
 ### 4.2.1 The wearer is posed by a different animation set per view, and first person never touches `waist`
 
