@@ -115,7 +115,7 @@ public final class AttachableLayer extends RenderLayer<AvatarRenderState, Player
                 .ifPresent(bound -> {
                     poseStack.pushPose();
                     toPlayerSpace(poseStack);
-                    AttachableGeometry.submit(collector, poseStack, bound.texture(),
+                    AttachableGeometry.submit(collector, poseStack, bound.texture(context),
                             bound.geometry(),
                             // THIS holder's playback: when each of her animations began and which
                             // state her controller is in. Per slot as well as per player - the two

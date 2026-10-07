@@ -1,0 +1,15 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [{
+    "description": { "identifier": "geometry.sc_mirror_probe" },
+    "bones": [{
+      "name": "root",
+      "reset": true,
+      "mirror": true,
+      "cubes": [
+        { "origin": [0,0,0], "size": [1,1,1], "uv": [0,0] },
+        { "origin": [1,0,0], "size": [1,1,1], "mirror": false, "uv": [0,0] }
+      ]
+    }]
+  }]
+}

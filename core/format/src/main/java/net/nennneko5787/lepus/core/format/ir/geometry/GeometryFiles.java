@@ -49,7 +49,7 @@ public final class GeometryFiles {
             "visible_bounds_width", "visible_bounds_height", "visible_bounds_offset");
     private static final Set<String> BONE_KEYS = Set.of(
             "name", "parent", "pivot", "rotation", "bind_pose_rotation", "binding",
-            "mirror", "inflate", "never_render", "cubes", "locators", "poly_mesh",
+            "reset", "mirror", "inflate", "never_render", "cubes", "locators", "poly_mesh",
             "texture_meshes", "debug", "render_group_id");
     private static final Set<String> CUBE_KEYS = Set.of(
             "origin", "size", "pivot", "rotation", "uv", "inflate", "mirror");
@@ -276,6 +276,7 @@ public final class GeometryFiles {
                 ctx.vec3(bone, "pivot", Vec3f.ZERO),
                 ctx.vec3(bone, "rotation", Vec3f.ZERO),
                 bone.getString("binding").filter(b -> !b.isBlank()),
+                ctx.boolValue(bone, "reset", false),
                 ctx.boolValue(bone, "mirror", false),
                 ctx.floatValue(bone, "inflate", 0f),
                 ctx.boolValue(bone, "never_render", false),
@@ -311,7 +312,7 @@ public final class GeometryFiles {
                 ctx.vec3(cube, "pivot", Vec3f.ZERO),
                 ctx.vec3(cube, "rotation", Vec3f.ZERO),
                 ctx.floatValue(cube, "inflate", 0f),
-                ctx.boolValue(cube, "mirror", false),
+                cube.get("mirror").flatMap(JsonValue::asBool),
                 parseUv(cube, size, ctx),
                 UnknownData.of(cube, CUBE_KEYS));
     }

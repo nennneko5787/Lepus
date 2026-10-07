@@ -16,7 +16,7 @@ import net.nennneko5787.lepus.core.format.value.Vec3f;
  * @param pivot    the cube's own rotation pivot; {@link Vec3f#ZERO} when it declares none
  * @param rotation degrees about {@code pivot}
  * @param inflate  grows the box by this on every side, without changing its UV
- * @param mirror   the {@code 1.8.0} family's per-cube U flip
+ * @param mirror   per-cube mirror override; absent inherits the bone value
  * @param uv       per-face, always — box UV is expanded at parse time (see {@link BoxUv})
  * @param unknown  keys this build does not recognise, kept verbatim (SC-110 §5)
  */
@@ -27,7 +27,7 @@ public record CubeIr(
         Vec3f pivot,
         Vec3f rotation,
         float inflate,
-        boolean mirror,
+        Optional<Boolean> mirror,
         Map<CubeFace, FaceUv> uv,
         UnknownData unknown) {
 
@@ -46,6 +46,11 @@ public record CubeIr(
 
     public Optional<FaceUv> face(CubeFace face) {
         return Optional.ofNullable(uv.get(face));
+    }
+
+    /** Effective mirror setting, including explicit {@code false}. */
+    public boolean mirrored(boolean boneMirror) {
+        return mirror.orElse(boneMirror);
     }
 
     /** True when the cube declares a rotation that a renderer has to apply per cube. */

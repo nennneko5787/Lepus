@@ -39,11 +39,20 @@ entries:
       minecraft:geometry array, per-face UV. Normalises to the same IR as the 1.8.0 family, so
       nothing downstream can tell which a pack used.
   - id: geometry/bones
-    status: stub
-    conformance: [packaging/format_version_sniffing]
+    status: partial
+    impl: net.nennneko5787.lepus.core.format.ir.geometry.BoneIr
+    conformance: [render/geometry_mirror]
+    fields:
+      reset: ok
+      hierarchy: partial
+    fidelity: >-
+      Bone reset is retained and every evaluated frame starts from the bind pose before animation.
+      Bone hierarchy and bind behavior work for attachables, but poly_mesh, binding, and geometry
+      inheritance are not resolved, so packs using those declarations still render incomplete rigs.
     notes: >-
-      Kept as a flat list with parent named by string, matching Bedrock's own files. Hierarchy
-      resolution is a later pass; a nameless bone is skipped with SCE-1036.
+      Geometry 1.12.0 accepts reset through 1.14.0; it is deprecated and no longer effective from
+      1.16.0. Microsoft's geometry 1.8.0 reference documents both limits. Bones remain a flat list
+      with parents named by string; nameless bones are skipped with SCE-1036.
   - id: geometry/pivot
     status: stub
   - id: geometry/rotation
@@ -66,9 +75,17 @@ entries:
     notes: >-
       Parsed and recorded on both bone and cube; applying it is a render-stage concern.
   - id: geometry/mirror
-    status: stub
-    notes: >-
-      Parsed and recorded; the U flip it implies is not applied to box-UV expansion.
+    status: partial
+    impl: net.nennneko5787.lepus.client.render.AttachableGeometry
+    conformance: [render/geometry_mirror]
+    fields:
+      bone_mirror: ok
+      cube_mirror_override: ok
+      uv_mapping: partial
+    fidelity: >-
+      Bone mirror inheritance and explicit cube overrides are applied, including explicit false.
+      The renderer mirrors face UV intervals for attachables; mirrored UV behavior has not been
+      confirmed pixel-for-pixel against Bedrock for every per-face UV orientation.
   - id: geometry/locators
     status: stub
     notes: >-

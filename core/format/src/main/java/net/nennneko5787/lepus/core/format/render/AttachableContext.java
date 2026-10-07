@@ -158,6 +158,9 @@ public final class AttachableContext implements MolangContext {
                 case "is_gliding" -> wearer.gliding() ? 1f : 0f;
                 case "is_sleeping" -> wearer.sleeping() ? 1f : 0f;
                 case "is_onfire", "is_on_fire" -> wearer.onFire() ? 1f : 0f;
+                // Bedrock's player attachable variant defaults to zero. A Java skin has no
+                // Bedrock entity-variant field; packs can still select their first array entry.
+                case "variant" -> 0f;
                 default -> delegate.read(scope, name);
             };
         }
@@ -206,5 +209,5 @@ public final class AttachableContext implements MolangContext {
     private static final java.util.Set<String> QUERIED = java.util.Set.of(
             "target_x_rotation", "target_y_rotation",
             "is_sneaking", "is_in_water", "is_in_water_or_rain", "is_swimming", "is_gliding",
-            "is_sleeping", "is_onfire", "is_on_fire");
+            "is_sleeping", "is_onfire", "is_on_fire", "variant");
 }

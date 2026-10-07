@@ -261,12 +261,10 @@ public final class BlockBinding {
                     .map(GEOMETRIES::get);
             if (attachable.isPresent() && shape.isPresent()) {
                 String name = "attachable/" + base.substring("item/".length());
+                List<Identifier> skins = attachableTextures(attachable.get(), name, files);
                 Optional<byte[]> skin = attachable.get().defaultTexture()
                         .flatMap(BlockBinding::readTexture);
-                skin.ifPresent(png -> files.put("textures/" + name + ".png", png));
-                attachables.put(id, BoundAttachables.Bound.of(shape.get(),
-                        Identifier.fromNamespaceAndPath(Lepus.MOD_ID,
-                                "textures/" + name + ".png"),
+                attachables.put(id, BoundAttachables.Bound.of(shape.get(), skins,
                         new AttachablePoser(shape.get(), animationsOf(attachable.get()),
                                 attachable.get().preAnimation())));
                 // Flat in the inventory, and nothing at all in a hand - which is what Bedrock does,
@@ -342,6 +340,7 @@ public final class BlockBinding {
             }
             String base = "attachable/vanilla/"
                     + name.get().getNamespace() + "_" + name.get().getPath();
+            List<Identifier> skins = attachableTextures(attachable, base, files);
             Optional<byte[]> skin = attachable.defaultTexture().flatMap(BlockBinding::readTexture);
             skin.ifPresent(png -> files.put("textures/" + base + ".png", png));
             if (skin.isEmpty()) {
@@ -351,8 +350,7 @@ public final class BlockBinding {
                         + "\" resolves to no file in any enabled pack");
             }
             bound.put(name.get().toString(), BoundAttachables.Bound.onVanillaItem(
-                    shape.get(),
-                    Identifier.fromNamespaceAndPath(Lepus.MOD_ID, "textures/" + base + ".png"),
+                    shape.get(), skins,
                     new AttachablePoser(shape.get(), animationsOf(attachable),
                             attachable.preAnimation())));
             // Vanilla's own definition, WRAPPED rather than rewritten: its model is carried across
@@ -453,6 +451,46 @@ public final class BlockBinding {
             }
         });
         return all;
+    }
+
+    /** Copies the attachable's selected texture array into generated resources. */
+    private static List<Identifier> attachableTextures(AttachableIr attachable, String target,
+            Map<String, byte[]> output) {
+        List<String> paths = attachableTexturePaths(attachable);
+        if (paths.isEmpty()) {
+            return List.of(Identifier.fromNamespaceAndPath(Lepus.MOD_ID,
+                    "textures/" + target + "_skin_0.png"));
+        }
+        List<Identifier> identifiers = new ArrayList<>();
+        for (int i = 0; i < paths.size(); i++) {
+            String resourcePath = "textures/" + target + "_skin_" + i + ".png";
+            if (!paths.get(i).isBlank()) {
+                readTexture(paths.get(i)).ifPresent(png -> output.put(resourcePath, png));
+            }
+            identifiers.add(Identifier.fromNamespaceAndPath(Lepus.MOD_ID, resourcePath));
+        }
+        return List.copyOf(identifiers);
+    }
+
+    /** Resolves the first supported render-controller texture list, else the default texture. */
+    private static List<String> attachableTexturePaths(AttachableIr attachable) {
+        for (String controllerName : attachable.renderControllers()) {
+            Optional<net.nennneko5787.lepus.core.format.ir.animation.RenderControllerIr> controller =
+                    resourceOf(resource -> Optional.ofNullable(
+                            resource.renderControllers().get(controllerName)));
+            if (controller.isEmpty()) {
+                continue;
+            }
+            Optional<List<String>> selected = controller.get().variantTextures()
+                    .map(entries -> entries.stream()
+                            .map(alias -> attachable.textures().getOrDefault(alias,
+                                    attachable.defaultTexture().orElse("")))
+                            .toList());
+            if (selected.isPresent() && !selected.get().isEmpty()) {
+                return selected.get();
+            }
+        }
+        return attachable.defaultTexture().map(List::of).orElse(List.of());
     }
 
     /**

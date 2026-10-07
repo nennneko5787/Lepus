@@ -238,7 +238,22 @@ public final class AddonIrJson {
     private static JsonValue resource(ResourceIr resource) {
         Map<String, JsonValue> geometries = new LinkedHashMap<>();
         resource.geometries().forEach((id, geometry) -> geometries.put(id, geometry(geometry)));
-        return new JsonObject(Map.of("geometries", new JsonObject(geometries)));
+        Map<String, JsonValue> controllers = new LinkedHashMap<>();
+        resource.renderControllers().forEach((id, controller) -> {
+            Map<String, JsonValue> arrays = new LinkedHashMap<>();
+            controller.textureArrays().forEach((name, values) -> arrays.put(name,
+                    new JsonArray(values.stream().map(AddonIrJson::string).toList())));
+            controllers.put(id, new JsonObject(Map.of(
+                    "textureArrays", new JsonObject(arrays),
+                    "textureExpressions", new JsonArray(controller.textureExpressions().stream()
+                            .map(AddonIrJson::string).toList()))));
+        });
+        Map<String, JsonValue> node = new LinkedHashMap<>();
+        node.put("geometries", new JsonObject(geometries));
+        if (!controllers.isEmpty()) {
+            node.put("renderControllers", new JsonObject(controllers));
+        }
+        return new JsonObject(node);
     }
 
     private static JsonValue geometry(GeometryIr geometry) {
@@ -281,6 +296,9 @@ public final class AddonIrJson {
         node.put("pivot", vec3(bone.pivot()));
         node.put("rotation", vec3(bone.rotation()));
         bone.bind().ifPresent(bind -> node.put("binding", string(bind)));
+        if (bone.reset()) {
+            node.put("reset", JsonBool.TRUE);
+        }
         if (bone.mirror()) {
             node.put("mirror", JsonBool.TRUE);
         }
@@ -312,9 +330,7 @@ public final class AddonIrJson {
         if (cube.inflate() != 0f) {
             node.put("inflate", JsonNumber.of(cube.inflate()));
         }
-        if (cube.mirror()) {
-            node.put("mirror", JsonBool.TRUE);
-        }
+        cube.mirror().ifPresent(mirror -> node.put("mirror", JsonBool.of(mirror)));
         Map<String, JsonValue> uv = new LinkedHashMap<>();
         for (CubeFace face : CubeFace.values()) {
             cube.face(face).ifPresent(value -> uv.put(face.declared(), faceUv(value)));

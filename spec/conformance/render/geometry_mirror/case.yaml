@@ -1,0 +1,22 @@
+id: render/geometry_mirror
+tier: T0
+spec: SC-180
+features:
+  - geometry/bones
+  - geometry/mirror
+description: >-
+  A 1.12 geometry bone reset flag and explicit cube mirror false must survive IR parsing; losing
+  either changes the bind pose or mirrors texture regions that the author opted out of.
+pack:
+  extends: minimal_rp
+  dir: pack
+  container: directory
+diagnostics:
+  exhaustive: true
+assert:
+  - that: ir.packs[0].resource.geometries['geometry.sc_mirror_probe'].bones[0].reset
+    equals: "true"
+  - that: ir.packs[0].resource.geometries['geometry.sc_mirror_probe'].bones[0].cubes[0].mirror
+    absent: true
+  - that: ir.packs[0].resource.geometries['geometry.sc_mirror_probe'].bones[0].cubes[1].mirror
+    equals: "false"

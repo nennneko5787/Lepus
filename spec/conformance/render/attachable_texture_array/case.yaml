@@ -1,0 +1,19 @@
+id: render/attachable_texture_array
+tier: T0
+spec: SC-170
+features:
+  - attachable/render_controllers
+description: >-
+  A render controller using Array.skins[query.variant] must keep its texture array and expression
+  so the attachable can bind the selected skin instead of always using its default texture.
+pack:
+  extends: minimal_rp
+  dir: pack
+  container: directory
+diagnostics:
+  exhaustive: true
+assert:
+  - that: ir.packs[0].resource.renderControllers['controller.render.sc_skin'].textureArrays['Array.skins']
+    equals: '["Texture.default","Texture.alex"]'
+  - that: ir.packs[0].resource.renderControllers['controller.render.sc_skin'].textureExpressions
+    equals: '["Array.skins[query.variant]"]'

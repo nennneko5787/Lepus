@@ -20,6 +20,7 @@ import net.nennneko5787.lepus.core.format.value.Vec3f;
  * @param pivot     rotation origin, in Bedrock's convention
  * @param rotation  degrees about {@code pivot}
  * @param bind      {@code binding}, verbatim — see the note below
+ * @param reset     legacy bone reset flag, effective through geometry format 1.14.0
  * @param mirror    mirrors every cube's UV
  * @param inflate   grows every cube by this
  * @param neverRender {@code never_render}: the bone positions children and draws nothing itself
@@ -34,6 +35,7 @@ public record BoneIr(
         Vec3f pivot,
         Vec3f rotation,
         Optional<String> bind,
+        boolean reset,
         boolean mirror,
         float inflate,
         boolean neverRender,

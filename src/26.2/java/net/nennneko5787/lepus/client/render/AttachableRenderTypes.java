@@ -12,10 +12,9 @@ import net.nennneko5787.lepus.core.api.SpecImpl;
  * strand, an eye, a skirt panel — that is meant to be visible from either side. Here the plain
  * {@code entityCutout} already is; {@code entityCutoutCull} is the culling one.
  *
- * <p>A per-version file because the names differ, not the meaning: 1.21.11 spells the same pair
- * {@code entityCutoutNoCull} and {@code entityCutoutNoCullZOffset}. Reading {@code entityCutout} as
- * "the same thing on both" was itself a bug — it culls on 1.21.11 and does not here, so one version
- * was quietly dropping the back of every flat quad.
+ * <p>A per-version file because the names differ, not the meaning. The flat-cube pass uses the same
+ * no-cull cutout layer as the solid pass; per-quad model-space offsets separate decals. Applying
+ * vanilla's Z-offset layer only on 26.2 made the same model render differently across versions.
  */
 @SpecImpl("SC-180")
 public final class AttachableRenderTypes {
@@ -29,15 +28,10 @@ public final class AttachableRenderTypes {
     }
 
     /**
-     * For flat cubes: the same, pulled towards the camera.
-     *
-     * <p>{@code VIEW_OFFSET_Z_LAYERING} — vanilla's own answer to a decal that would otherwise fight
-     * the surface it decorates. A Bedrock model puts an eye two hundredths of a unit in front of a
-     * face; at 1/16 scale that is a millimetre and a quarter, which no depth buffer at Minecraft's
-     * view distance can separate. Bedrock's renderer tolerates it and Java's does not, so the
-     * decoration is layered instead of nudged — no guess about which way "outwards" is.
+     * For flat cubes: the same no-cull cutout layer. Their separation is handled by the geometry
+     * submitter so both Minecraft versions use identical depth behavior.
      */
     public static RenderType overlay(Identifier texture) {
-        return RenderTypes.entityCutoutZOffset(texture);
+        return RenderTypes.entityCutout(texture);
     }
 }

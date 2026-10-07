@@ -30,11 +30,11 @@ Definitions are normative in [SC-000 section 3](../../spec/normative/SC-000-conv
 | [packaging](packaging.md) | SC-100 | 19 | 0 | 14 | 2 | 3 | 0 |
 | [recipes](recipes.md) | SC-190 | 9 | 0 | 0 | 9 | 0 | 0 |
 | [rp-animations](rp-animations.md) | SC-180 | 22 | 0 | 6 | 16 | 0 | 0 |
-| [rp-attachables](rp-attachables.md) | SC-170 | 10 | 0 | 6 | 4 | 0 | 0 |
+| [rp-attachables](rp-attachables.md) | SC-170 | 10 | 0 | 7 | 3 | 0 | 0 |
 | [rp-client-biomes](rp-client-biomes.md) | SC-180 | 6 | 0 | 0 | 6 | 0 | 0 |
 | [rp-client-entity](rp-client-entity.md) | SC-180 | 15 | 0 | 0 | 15 | 0 | 0 |
 | [rp-fog](rp-fog.md) | SC-180 | 2 | 0 | 0 | 1 | 1 | 0 |
-| [rp-geometry](rp-geometry.md) | SC-180 | 17 | 0 | 1 | 16 | 0 | 0 |
+| [rp-geometry](rp-geometry.md) | SC-180 | 17 | 0 | 3 | 14 | 0 | 0 |
 | [rp-lang-font](rp-lang-font.md) | SC-180 | 4 | 0 | 1 | 3 | 0 | 0 |
 | [rp-materials](rp-materials.md) | SC-180 | 8 | 0 | 0 | 5 | 0 | 3 |
 | [rp-particles](rp-particles.md) | SC-180 | 33 | 0 | 0 | 33 | 0 | 0 |
@@ -47,7 +47,7 @@ Definitions are normative in [SC-000 section 3](../../spec/normative/SC-000-conv
 | [spawn-rules](spawn-rules.md) | SC-190 | 16 | 0 | 0 | 16 | 0 | 0 |
 | [structures](structures.md) | SC-190 | 6 | 0 | 0 | 3 | 3 | 0 |
 | [trading](trading.md) | SC-190 | 9 | 0 | 0 | 9 | 0 | 0 |
-| **total** | | **1364** | **2** | **40** | **1287** | **25** | **10** |
+| **total** | | **1364** | **2** | **43** | **1284** | **25** | **10** |
 
 ## How to read this
 

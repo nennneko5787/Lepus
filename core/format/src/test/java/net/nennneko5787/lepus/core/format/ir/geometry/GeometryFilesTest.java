@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import net.nennneko5787.lepus.core.api.ProvesSpec;
 import net.nennneko5787.lepus.core.format.diag.Diagnostics;
 import net.nennneko5787.lepus.core.format.ir.IrDiagnostics;
@@ -32,6 +33,36 @@ class GeometryFilesTest {
 
     private boolean reported(int code) {
         return !diagnostics.snapshot().withCode(code).isEmpty();
+    }
+
+    @Test
+    @ProvesSpec("SC-180#geometry/bones")
+    void keepsFormat112ResetAndCubeMirrorOverridePresence() {
+        GeometryIr model = parse("""
+                {
+                  "format_version": "1.12.0",
+                  "minecraft:geometry": [{
+                    "description": { "identifier": "geometry.mirror_probe" },
+                    "bones": [{ "name": "body", "reset": true, "mirror": true,
+                      "cubes": [
+                        { "origin": [0,0,0], "size": [2,2,2], "uv": [0,0] },
+                        { "origin": [2,0,0], "size": [2,2,2], "mirror": false, "uv": [0,0] },
+                        { "origin": [4,0,0], "size": [2,2,2], "mirror": true, "uv": [0,0] }
+                      ]
+                    }]
+                  }]
+                }
+                """).get(0);
+
+        var bone = model.bone("body").orElseThrow();
+        assertTrue(bone.reset());
+        assertTrue(bone.mirror());
+        assertEquals(Optional.empty(), bone.cubes().get(0).mirror());
+        assertEquals(Optional.of(false), bone.cubes().get(1).mirror());
+        assertEquals(Optional.of(true), bone.cubes().get(2).mirror());
+        assertTrue(bone.cubes().get(0).mirrored(bone.mirror()));
+        assertFalse(bone.cubes().get(1).mirrored(bone.mirror()));
+        assertTrue(bone.cubes().get(2).mirrored(bone.mirror()));
     }
 
     @Test

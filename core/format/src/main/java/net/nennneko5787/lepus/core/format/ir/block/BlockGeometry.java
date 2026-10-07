@@ -290,7 +290,7 @@ public final class BlockGeometry {
         }
 
         Map<String, JsonValue> faces = new LinkedHashMap<>();
-        boolean mirror = cube.mirror() || bone.mirror();
+        boolean mirror = cube.mirrored(bone.mirror());
         // BOTH faces of a zero-thickness axis are emitted, and this was measured rather than
         // reasoned. §5.3.1 originally said to drop one, mirroring what the attachable path does, and
         // dropping `up` from a flat cube made the trophy's halo disappear from the world entirely.

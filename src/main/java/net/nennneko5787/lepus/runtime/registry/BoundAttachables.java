@@ -27,7 +27,8 @@ import net.nennneko5787.lepus.core.molang.MolangContext;
  * never changes. Animation will add a per-frame layer on top (stage C); this stays the base it
  * starts from.
  */
-@SpecImpl({"SC-170#attachable/geometry", "SC-170#attachable/textures", "SC-170#attachable/item"})
+@SpecImpl({"SC-170#attachable/geometry", "SC-170#attachable/textures", "SC-170#attachable/item",
+        "SC-170#attachable/render_controllers"})
 public final class BoundAttachables {
 
     /**
@@ -35,14 +36,26 @@ public final class BoundAttachables {
      *
      * @param geometry   the Bedrock model, unconverted — the renderer converts once, at the edge
      * @param texture    where the generated pack serves its texture
-     * @param bindPose   every bone's transform with no animation applied
-     * @param animations what plays, in the order {@code scripts.animate} lists it
+     * @param poser           per-frame animation evaluator
+     * @param inFirstPerson   whether this attachable draws in first person
+     * @param variantTextures textures ordered by the supported {@code query.variant} array index
      */
     public record Bound(GeometryIr geometry, Identifier texture, AttachablePoser poser,
-            boolean inFirstPerson) {
+            boolean inFirstPerson, List<Identifier> variantTextures) {
+
+        public Bound {
+            variantTextures = List.copyOf(variantTextures);
+        }
 
         public static Bound of(GeometryIr geometry, Identifier texture, AttachablePoser poser) {
-            return new Bound(geometry, texture, poser, true);
+            return new Bound(geometry, texture, poser, true, List.of(texture));
+        }
+
+        public static Bound of(GeometryIr geometry, List<Identifier> textures,
+                AttachablePoser poser) {
+            Identifier fallback = textures.isEmpty()
+                    ? Identifier.fromNamespaceAndPath("minecraft", "missingno") : textures.get(0);
+            return new Bound(geometry, fallback, poser, true, textures);
         }
 
         /**
@@ -56,7 +69,24 @@ public final class BoundAttachables {
          */
         public static Bound onVanillaItem(GeometryIr geometry, Identifier texture,
                 AttachablePoser poser) {
-            return new Bound(geometry, texture, poser, false);
+            return new Bound(geometry, texture, poser, false, List.of(texture));
+        }
+
+        public static Bound onVanillaItem(GeometryIr geometry, List<Identifier> textures,
+                AttachablePoser poser) {
+            Identifier fallback = textures.isEmpty()
+                    ? Identifier.fromNamespaceAndPath("minecraft", "missingno") : textures.get(0);
+            return new Bound(geometry, fallback, poser, false, textures);
+        }
+
+        /** Texture selected by the supported integer {@code query.variant} array index. */
+        public Identifier texture(MolangContext context) {
+            if (variantTextures.isEmpty()) {
+                return texture;
+            }
+            float raw = context.read(MolangContext.Scope.QUERY, "variant");
+            int index = Float.isFinite(raw) ? Math.max(0, (int) raw) : 0;
+            return variantTextures.get(Math.min(index, variantTextures.size() - 1));
         }
 
         /**

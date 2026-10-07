@@ -46,7 +46,20 @@ entries:
 
       The machine's state is kept per holder, one transition per frame. SC-180 section 5.2.
   - id: attachable/render_controllers
-    status: stub
+    status: partial
+    impl: net.nennneko5787.lepus.core.format.ir.animation.RenderControllerFiles
+    conformance: [render/attachable_texture_array]
+    fields:
+      texture_arrays: ok
+      query_variant_index: partial
+      geometry_selection: missing
+      material_selection: missing
+      part_visibility: missing
+    fidelity: >-
+      The first texture array indexed by query.variant is selected, and the attachable's texture
+      aliases resolve to generated resources. Java attachables currently answer query.variant as zero,
+      so non-default Bedrock variants are not selected; unsupported controller fields fall back to
+      the default texture, which can show the wrong skin or omit controller-specific visibility.
   - id: attachable/scripts
     status: partial
     impl: net.nennneko5787.lepus.core.format.render.AttachablePoser

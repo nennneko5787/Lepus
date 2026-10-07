@@ -71,7 +71,10 @@ public final class FirstPersonAttachables {
                 .ifPresent(bound -> {
                     poseStack.pushPose();
                     toPlayerSpace(poseStack, player);
-                    AttachableGeometry.submit(collector, poseStack, bound.texture(),
+                    AttachableContext context = AttachableContext
+                            .firstPerson(hand == InteractionHand.MAIN_HAND)
+                            .doing(WearerState.of(player));
+                    AttachableGeometry.submit(collector, poseStack, bound.texture(context),
                             bound.geometry(),
                             // The SAME playback the third-person layer uses for this hand: the
                             // player and the slot name it, not the view. Looking down at your own
@@ -85,13 +88,7 @@ public final class FirstPersonAttachables {
                                     // model that is already following it. Bedrock's first-person
                                     // character does not turn her head at all; the third-person one
                                     // does, which is why the layer still passes these.
-                                    AttachableContext
-                                            .firstPerson(hand == InteractionHand.MAIN_HAND)
-                                            // What the player is DOING, which this view needs as
-                                            // much as the other: the corpus poses the first-person
-                                            // hand differently while sneaking, and asks with
-                                            // `query.is_sneaking` in the entry's own blend.
-                                            .doing(WearerState.of(player)),
+                                    context,
                                     // The wearer's own bones, at rest. A first-person view draws no
                                     // player model to read them from, and the space is not the
                                     // player's anyway — but they must still be SUPPLIED, because a

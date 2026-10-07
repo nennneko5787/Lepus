@@ -42,7 +42,7 @@ import net.nennneko5787.lepus.core.format.value.Vec3f;
  * <p>Both are settled by looking at a frame, not by reading a jar. They are named and isolated so
  * that settling them is one edit each rather than a hunt.
  */
-@SpecImpl(value = "SC-170#attachable/geometry",
+@SpecImpl(value = {"SC-170#attachable/geometry", "SC-180#geometry/mirror"},
         note = "Static pose. Animation, controllers and render controllers are later stages.")
 public final class AttachableGeometry {
 
@@ -197,18 +197,14 @@ public final class AttachableGeometry {
         // carries it from there like any other vertex.
         float dx = 0.0f, dy = 0.0f, dz = 0.0f;
         if (lift != 0.0f) {
-            // Same corner order `face` uses for NORTH: (x1,y0,z0), (x0,y0,z0), (x0,y1,z0).
-            float[] a = {x1, y0, z0};
-            float[] b = {x0, y0, z0};
-            float[] c = {x0, y1, z0};
-            float nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
-            float ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
-            float nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-            float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
-            if (length > 1.0e-6f) {
-                dx = nx / length * lift;
-                dy = ny / length * lift;
-                dz = nz / length * lift;
+            CubeFace drawn = drawnFlatFace(x1 - x0, y1 - y0, z1 - z0);
+            switch (drawn == null ? CubeFace.NORTH : drawn) {
+                case NORTH -> dz = -lift;
+                case SOUTH -> dz = lift;
+                case EAST -> dx = lift;
+                case WEST -> dx = -lift;
+                case UP -> dy = lift;
+                case DOWN -> dy = -lift;
             }
         }
 
@@ -216,6 +212,8 @@ public final class AttachableGeometry {
         // shared by the six faces: a corner belongs to three of them, and transforming it three
         // times is both slower and a way for two faces to disagree about where an edge is.
         float[][] corner = new float[8][];
+        float normalSign = linearDeterminant(bonePose) * space[0] * space[1] * space[2] < 0.0f
+                ? -1.0f : 1.0f;
         for (int i = 0; i < 8; i++) {
             float x = (i & 1) == 0 ? x0 : x1;
             float y = (i & 2) == 0 ? y0 : y1;
@@ -242,13 +240,32 @@ public final class AttachableGeometry {
         // every pair whose two rectangles both have content.
         CubeFace flat = flatFace(size.x() + inflate * 2, size.y() + inflate * 2,
                 size.z() + inflate * 2);
+        boolean mirrored = cube.mirrored(bone.mirror());
         for (CubeFace face : CubeFace.values()) {
             if (face == flat) {
                 continue;
             }
-            cube.face(face).ifPresent(uv -> face(buffer, matrix, corner, face, uv,
-                    width, height, light, overlay, tint));
+            cube.face(face).ifPresent(uv -> face(buffer, matrix, corner, face,
+                    mirrored ? mirrored(uv) : uv,
+                    width, height, light, overlay, tint, normalSign));
         }
+    }
+
+    /** Mirrors a face's U interval while preserving the meaning of negative UV sizes. */
+    private static FaceUv mirrored(FaceUv uv) {
+        return new FaceUv(
+                uv.uv().plus(uv.uvSize().x(), 0.0f),
+                new net.nennneko5787.lepus.core.format.value.Vec2f(
+                        -uv.uvSize().x(), uv.uvSize().y()),
+                uv.materialInstance());
+    }
+
+    /** Sign of the bone pose's linear 3x3 determinant; translation does not affect orientation. */
+    private static float linearDeterminant(Mat4f transform) {
+        float[] m = transform.m();
+        return m[0] * (m[5] * m[10] - m[9] * m[6])
+                - m[4] * (m[1] * m[10] - m[9] * m[2])
+                + m[8] * (m[1] * m[6] - m[5] * m[2]);
     }
 
     /**
@@ -303,12 +320,26 @@ public final class AttachableGeometry {
         return null;
     }
 
+    /** The surviving face whose outward normal gives the decal lift direction. */
+    private static CubeFace drawnFlatFace(float width, float height, float depth) {
+        if (depth == 0.0f) {
+            return CubeFace.NORTH;
+        }
+        if (width == 0.0f) {
+            return CubeFace.WEST;
+        }
+        if (height == 0.0f) {
+            return CubeFace.UP;
+        }
+        return null;
+    }
+
     /**
      * One face, as two triangles' worth of quad.
      *
      * <p>The corner quadruples are wound so that the face is seen from outside the box in <b>Bedrock's</b>
-     * space. the conversions mirror an even number of axes and therefore preserve
-     * winding — so if faces turn out inside out, the fault is this table and not the conversion.
+     * space. Reflections in the bone pose or space conversion can reverse the cross product, so the
+     * determinant sign restores the outward lighting normal without changing vertex winding.
      *
      * <p>The normal is computed from the corners rather than taken from the face's name, because a
      * posed cube's north face does not point north any more. Lighting reads it, and a stale normal
@@ -316,7 +347,7 @@ public final class AttachableGeometry {
      */
     private static void face(VertexConsumer buffer, PoseStack.Pose matrix, float[][] corner,
             CubeFace face, FaceUv uv, float width, float height,
-            int light, int overlay, int tint) {
+            int light, int overlay, int tint, float normalSign) {
         int[] order = switch (face) {
             // Bits: 1 = x1, 2 = y1, 4 = z1.
             case NORTH -> new int[] {1, 0, 2, 3};
@@ -337,6 +368,9 @@ public final class AttachableGeometry {
         float nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
         float ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
         float nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        nx *= normalSign;
+        ny *= normalSign;
+        nz *= normalSign;
         float length = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
         if (length > 1.0e-6f) {
             nx /= length;
