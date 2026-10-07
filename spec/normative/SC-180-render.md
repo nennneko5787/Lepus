@@ -163,8 +163,10 @@ relative to Java's — because telling them apart requires looking at a rendered
 does that, `geometry/box_uv` carries the caveat, and the constants live in one class so the
 correction is three lines rather than an audit.
 
-`mirror` flips U per cube and is parsed but not applied to the expansion. `inflate` grows a box
-without changing its UV, and is likewise recorded and not applied — both are render-stage concerns.
+`mirror` is inherited from the bone unless the cube explicitly sets it; an explicit `false` is an
+override. It mirrors each face's U interval; Bedrock describes the mirror as flipping east/west
+faces as part of that mapping. `inflate` grows a box without changing its UV. Both are render-stage
+concerns.
 
 ### 3.4 Coordinate conventions
 
@@ -359,13 +361,14 @@ reasoning and each will come back the same way.
 | dropped | uses in the surveyed corpus |
 |---|---|
 | ~~`lerp_mode: catmullrom` and `post` keyframes — §4 samples linearly~~ **closed, §4.1.2** | **233**, counted again against the installed packs rather than trusted from this row |
-| `reset` on a bone — not in `BONE_KEYS`, so it lands in the unknown bag | 2, and both on the bones of the one model whose first-person placement is wrong |
+| `reset` on a bone — not in `BONE_KEYS`, so it lands in the unknown bag | 2, both on one attachable |
 
-Neither is the cause of that placement, and the checks are worth recording so they are not redone:
-the `catmullrom` uses are in walk and idle animations of *other* characters, not the two the
-first-person question turns on; and `reset` **appears in no version of Mojang's geometry schema —
-1.12, 1.16 or 1.21 — and in no vanilla model**, which makes it a Blockbench artefact that Bedrock
-most likely ignores too.
+Neither is the cause of that placement. The claim that `reset` was absent from Mojang's schema was
+wrong: Microsoft's geometry 1.8.0 documentation specifies it as resetting a bone to its bind pose
+before animations, and says it remains effective through format 1.14.0. It is deprecated and unused
+from 1.16.0 onward. Therefore it applies to geometry format 1.12.0 and must be preserved there.
+The frame evaluator already starts from the geometry pose before applying animations, so retaining
+the flag does not require carrying transforms between frames.
 
 **The first entry was a real fidelity gap and has been closed on its own merits** (§4.1.2). Two
 hundred and thirty-three keyframes across twenty-two files sampled as straight lines where Bedrock
@@ -1630,7 +1633,10 @@ one entry. Constitution rule 5 — and the survey prints it, which is how it was
 
 Render controllers then choose, **per frame and via Molang**, the geometry, textures and materials
 to use, which bones are visible (`part_visibility`), colour and overlay tints, `uv_anim`, and
-lighting flags — with `arrays` plus Molang index expressions providing variant selection.
+lighting flags — with `arrays` plus Molang index expressions providing variant selection. The
+attachable path currently implements only texture-array selection whose index is
+`query.variant`; other render-controller directives remain unsupported and fall back to the
+attachable's default texture.
 
 **Per-frame ordering is normative** and must be specified precisely: `pre_animation` → animation
 controllers → animation sampling → `animate` → render controller evaluation → submission. Getting
